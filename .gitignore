@@ -11,5 +11,5 @@ coverage/
 .codex/
 .supermech/
 # Compiled output in source dirs (tsc in-place artifacts)
-src/**/*.js
-src/**/*.js.map
+**/src/**/*.js
+**/src/**/*.js.map
