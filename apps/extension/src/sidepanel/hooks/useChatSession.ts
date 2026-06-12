@@ -71,6 +71,42 @@ export function useChatSession() {
     }
   }
 
+  const updateWorkspace = async (profile: WorkspaceProfile) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/workspaces/${profile.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile)
+      })
+      if (res.ok) {
+        await loadWorkspaces()
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to update workspace")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("更新工作空间失败")
+    }
+  }
+
+  const deleteWorkspace = async (id: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/workspaces/${id}`, {
+        method: "DELETE"
+      })
+      if (res.ok) {
+        await loadWorkspaces()
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete workspace")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("删除工作空间失败")
+    }
+  }
+
   const send = async (params: {
     workspaceId: string
     agent: "claude-code" | "codex"
@@ -211,6 +247,8 @@ export function useChatSession() {
     statusText,
     send,
     addWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
     loadWorkspaces,
     saveSkill,
     deleteSkill,

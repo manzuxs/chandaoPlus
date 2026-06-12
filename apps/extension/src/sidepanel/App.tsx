@@ -4,18 +4,37 @@ import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
 import { SkillManager } from "./components/SkillManager"
 import { useChatSession } from "./hooks/useChatSession"
-import { captureActiveTabPage, formatPageCapturePreview } from "../lib/page-capture"
 
+// SVG Icons
 const CopyIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-    <rect x="9" y="9" width="10" height="10" rx="2" />
-    <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
   </svg>
 )
 
 const CheckIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-    <path d="M20 6 9 17l-5-5" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
+const ChevronDownIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+)
+
+const SendIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="22" y1="2" x2="11" y2="13" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+)
+
+const BoltIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   </svg>
 )
 
@@ -26,17 +45,15 @@ export function App() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [input, setInput] = useState("")
   const [showSkillManager, setShowSkillManager] = useState(false)
-  const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
-  const [copyingPagePreview, setCopyingPagePreview] = useState(false)
+  const [copiedStatus, setCopiedStatus] = useState(false)
 
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
     setAgentMenuOpen(false)
   }
-  const [copiedStatus, setCopiedStatus] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, saveSkill, deleteSkill } = useChatSession()
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill } = useChatSession()
 
   // Load last used workspace id
   useEffect(() => {
@@ -78,7 +95,6 @@ export function App() {
   const selectSlashCommand = (skill: Skill) => {
     setCommand(skill.id)
     setInput(skill.promptTemplate.split("\n")[0] || skill.name)
-    // Focus the textarea and set cursor at the end
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()
@@ -99,65 +115,48 @@ export function App() {
     }
   }
 
-  const handleCopyPagePreview = async () => {
-    if (copyingPagePreview) return
-
-    setCopyingPagePreview(true)
-    try {
-      const capture = await captureActiveTabPage()
-      const preview = formatPageCapturePreview(capture)
-      await navigator.clipboard.writeText(preview)
-      setPagePreviewCopied(true)
-      setTimeout(() => setPagePreviewCopied(false), 2000)
-    } catch (err) {
-      console.error("Failed to copy page preview:", err)
-    } finally {
-      setCopyingPagePreview(false)
-    }
-  }
-
   const formatStatusText = (text: string) => {
     if (!text) return ""
-    if (copiedStatus) return "📋 已复制包绝对路径 ✔"
+    if (copiedStatus) return "已复制路径"
     if (text.startsWith("bundle ready: ")) {
-      // Extract the last part (session ID) from the path
       const parts = text.split(/[/\\]/)
       const sessionId = parts[parts.length - 1] || ""
-      return `🟢 上下文包就绪 (${sessionId.substring(0, 8)}) | 点击复制绝对路径`
+      return `上下文就绪 (${sessionId.substring(0, 8)}) · 点击复制`
     }
     return text
   }
 
-  const selectedWorkspace = workspaces.find((item) => item.id === workspaceId)
-
   return (
     <div className="app-container">
       <header className="app-header">
-        <div className="app-header-left">
-          <button
-            type="button"
-            className={`btn-copy-page ${pagePreviewCopied ? "copied" : ""}`}
-            onClick={handleCopyPagePreview}
-            aria-label="复制当前网页内容"
-            title={pagePreviewCopied ? "已复制网页内容" : "复制当前要发送给 Agent 的网页内容"}
-            disabled={copyingPagePreview}
-          >
-            {pagePreviewCopied ? <CheckIcon /> : <CopyIcon />}
-          </button>
+        <div className="app-header-right">
           <WorkspaceSwitcher
             value={workspaceId}
             onChange={handleWorkspaceChange}
             workspaces={workspaces}
             onAddWorkspace={addWorkspace}
+            onUpdateWorkspace={updateWorkspace}
+            onDeleteWorkspace={deleteWorkspace}
           />
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => setShowSkillManager(!showSkillManager)}
+            title="管理技能"
+            aria-label="管理技能"
+          >
+            <BoltIcon />
+          </button>
+          <button
+            type="button"
+            className={`btn-icon ${copiedStatus ? "copied" : ""}`}
+            onClick={handleStatusClick}
+            aria-label="复制路径"
+            title="复制上下文路径"
+          >
+            {copiedStatus ? <CheckIcon /> : <CopyIcon />}
+          </button>
         </div>
-        <button
-          className="btn-manage-skills"
-          onClick={() => setShowSkillManager(!showSkillManager)}
-          title="管理技能"
-        >
-          ⚡
-        </button>
       </header>
 
       {showSkillManager && (
@@ -180,12 +179,11 @@ export function App() {
         />
       </div>
 
-      <footer className="app-footer-modern">
+      <footer className="app-footer">
         {statusText && (
           <div
-            className="status-banner-modern"
+            className={`status-banner ${copiedStatus ? "copied" : ""}`}
             onClick={handleStatusClick}
-            title={statusText.startsWith("bundle ready: ") ? "点击一键复制本地绝对路径" : ""}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -194,8 +192,8 @@ export function App() {
               }
             }}
           >
-            <span className="status-icon">🟢</span>
-            <span className="status-text">{formatStatusText(statusText)}</span>
+            {!copiedStatus && <span className="status-icon" />}
+            <span>{formatStatusText(statusText)}</span>
           </div>
         )}
 
@@ -205,7 +203,7 @@ export function App() {
               <button
                 key={skill.id}
                 type="button"
-                className={`quick-skill-pill ${skill.id}`}
+                className="btn-pill btn-pill-secondary"
                 onClick={() => selectSlashCommand(skill)}
               >
                 {skill.icon} {skill.name}
@@ -216,17 +214,17 @@ export function App() {
 
         <div className="input-card">
           {showSlashMenu && (
-            <div className="slash-menu-modern">
-              <div className="slash-menu-header">快捷技能 (点击选择)</div>
+            <div className="slash-menu">
+              <div className="slash-menu-header">快捷技能</div>
               {filteredCommands.map((skill) => (
                 <div
                   key={skill.id}
                   className="slash-menu-item"
                   onClick={() => selectSlashCommand(skill)}
                 >
-                  <span className="item-icon">{skill.icon}</span>
-                  <span className="item-name">{skill.name}</span>
-                  <span className="item-desc">/{skill.id}</span>
+                  <span className="slash-menu-item-icon">{skill.icon}</span>
+                  <span className="slash-menu-item-name">{skill.name}</span>
+                  <span className="slash-menu-item-desc">/{skill.id}</span>
                 </div>
               ))}
             </div>
@@ -235,76 +233,75 @@ export function App() {
             ref={textareaRef}
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
-            placeholder='输入 "/" 或选用快捷技能以使用命令...'
+            placeholder='输入 "/" 查看可用技能...'
             disabled={sending}
           />
           <div className="input-toolbar">
-            <div className="toolbar-right">
-              <div className="agent-selector-wrapper">
-                <div 
-                  className="agent-selector-badge" 
-                  onClick={() => setAgentMenuOpen(!agentMenuOpen)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      setAgentMenuOpen(!agentMenuOpen)
-                    }
-                  }}
-                >
-                  <span>{agent === "claude-code" ? "Claude Code" : "Codex"}</span>
-                  <span className="arrow">▲</span>
-                </div>
-                {agentMenuOpen && (
-                  <div className="agent-menu">
-                    <div className="agent-menu-header">选择 Agent</div>
-                    <div 
-                      className={`agent-menu-item ${agent === "claude-code" ? "active" : ""}`}
-                      onClick={() => selectAgent("claude-code")}
-                      role="option"
-                      aria-selected={agent === "claude-code"}
-                    >
-                      <div className="agent-item-info">
-                        <div className="agent-item-name">Claude Code</div>
-                        <div className="agent-item-desc">全方位编码助手</div>
-                      </div>
-                      {agent === "claude-code" && <span className="agent-check">●</span>}
-                    </div>
-                    <div 
-                      className={`agent-menu-item ${agent === "codex" ? "active" : ""}`}
-                      onClick={() => selectAgent("codex")}
-                      role="option"
-                      aria-selected={agent === "codex"}
-                    >
-                      <div className="agent-item-info">
-                        <div className="agent-item-name">Codex</div>
-                        <div className="agent-item-desc">快速代码生成</div>
-                      </div>
-                      {agent === "codex" && <span className="agent-check">●</span>}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <button
-                className="btn-send-modern"
-                aria-label="发送"
-                disabled={!workspaceId || sending}
-                onClick={() =>
-                  send({
-                    workspaceId,
-                    agent,
-                    command,
-                    input
-                  })
-                }
-                type="button"
+            <div className="agent-selector">
+              <div
+                className={`agent-selector-trigger ${agentMenuOpen ? "open" : ""}`}
+                onClick={() => setAgentMenuOpen(!agentMenuOpen)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setAgentMenuOpen(!agentMenuOpen)
+                  }
+                }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-              </button>
+                <span>{agent === "claude-code" ? "Claude Code" : "Codex"}</span>
+                <ChevronDownIcon />
+              </div>
+              {agentMenuOpen && (
+                <div className="agent-menu">
+                  <div className="agent-menu-header">选择 Agent</div>
+                  <div
+                    className="agent-menu-item"
+                    onClick={() => selectAgent("claude-code")}
+                    role="option"
+                    aria-selected={agent === "claude-code"}
+                  >
+                    <div>
+                      <div className="agent-menu-item-name">Claude Code</div>
+                      <div className="agent-menu-item-desc">全方位编码助手</div>
+                    </div>
+                    {agent === "claude-code" && (
+                      <span className="agent-check"><CheckIcon /></span>
+                    )}
+                  </div>
+                  <div
+                    className="agent-menu-item"
+                    onClick={() => selectAgent("codex")}
+                    role="option"
+                    aria-selected={agent === "codex"}
+                  >
+                    <div>
+                      <div className="agent-menu-item-name">Codex</div>
+                      <div className="agent-menu-item-desc">快速代码生成</div>
+                    </div>
+                    {agent === "codex" && (
+                      <span className="agent-check"><CheckIcon /></span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+            <button
+              type="button"
+              className="btn-send"
+              aria-label="发送"
+              disabled={!workspaceId || sending}
+              onClick={() =>
+                send({
+                  workspaceId,
+                  agent,
+                  command,
+                  input
+                })
+              }
+            >
+              <SendIcon />
+            </button>
           </div>
         </div>
       </footer>

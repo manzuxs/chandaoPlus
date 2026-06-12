@@ -24,4 +24,11 @@ export class WorkspaceStore {
     await mkdir(dirname(this.filePath), { recursive: true })
     await writeFile(this.filePath, JSON.stringify(next, null, 2), "utf8")
   }
+
+  async delete(id: string): Promise<void> {
+    const current = await this.list()
+    const next = current.filter((item) => item.id !== id)
+    await mkdir(dirname(this.filePath), { recursive: true })
+    await writeFile(this.filePath, JSON.stringify(next, null, 2), "utf8")
+  }
 }

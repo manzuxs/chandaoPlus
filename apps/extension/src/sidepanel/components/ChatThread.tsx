@@ -1,57 +1,60 @@
 import React, { useEffect, useRef, useState } from "react"
 import type { ChatMessage, Skill } from "@chandaoplus/shared"
 
+// SVG Icons
+const UserIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+)
+
+const AiIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+    <path d="M2 17l10 5 10-5" />
+    <path d="M2 12l10 5 10-5" />
+  </svg>
+)
+
+const SystemIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+  </svg>
+)
+
+const CopyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+  </svg>
+)
+
 interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
   onSelectSkill?: (skill: Skill) => void
 }
 
-const UserAvatar = () => (
-  <svg className="avatar-icon user" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-  </svg>
-)
-
-const AiAvatar = () => (
-  <svg className="avatar-icon assistant" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21m0 0l-.813-5.096L5 14m4 7L5 14m8.813-5.096L15 3m0 0l.813 5.096L19 10m-4-7L19 10M9.813 8.096L9 3m0 0L8.187 8.096L5 10m4-7L5 10m8.813 7.904L15 21m0 0l.813-5.096L19 14m-4 7L19 14" />
-  </svg>
-)
-
-const SystemAvatar = () => (
-  <svg className="avatar-icon system" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-)
-
 function renderMarkdown(md: string): string {
   if (!md) return ""
 
-  // 1. Escape HTML to prevent XSS
   let html = md
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
 
-  // 2. Parse code blocks
   html = html.replace(/```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g, (_, code) => {
     return `<pre><code>${code}</code></pre>`
   })
 
-  // 3. Parse inline code
   html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>")
-
-  // 4. Parse bold text
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-
-  // 5. Parse headers
   html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>")
   html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>")
   html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>")
 
-  // 6. Parse lists and tables line-by-line
   const lines = html.split("\n")
   let inTable = false
   let inList = false
@@ -59,7 +62,6 @@ function renderMarkdown(md: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
-    // Unordered lists
     if (line.startsWith("- ") || /^-\s/.test(line)) {
       const content = `<li>${line.replace(/^-\s+/, "")}</li>`
       if (!inList) {
@@ -75,7 +77,6 @@ function renderMarkdown(md: string): string {
       }
     }
 
-    // Markdown tables
     if (line.startsWith("|") && line.endsWith("|")) {
       const cells = line.split("|").slice(1, -1).map((c) => c.trim())
       if (!inTable) {
@@ -114,8 +115,8 @@ function CopyButton({ text }: { text: string }) {
   }
 
   return (
-    <button className="btn-copy" onClick={handleCopy} type="button">
-      {copied ? "已复制 ✔" : "复制"}
+    <button className="btn-copy" onClick={handleCopy} type="button" title={copied ? "已复制" : "复制"}>
+      <CopyIcon />
     </button>
   )
 }
@@ -134,9 +135,9 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
       {messages.length === 0 ? (
         <div className="empty-thread">
           <div className="welcome-section">
-            <h4 className="welcome-title">您好，我是 chandaoPlus</h4>
+            <h4 className="welcome-title">您好，我是chandaoPlus</h4>
             <p className="welcome-subtitle">
-              请点击下方"技能"卡片或输入"/"以快速执行任务：
+              选择技能或输入 "/" 开始对话
             </p>
           </div>
 
@@ -144,10 +145,15 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
             {skills.map((skill) => (
               <div
                 key={skill.id}
-                className={`skill-chip ${skill.id}`}
+                className="skill-chip"
                 onClick={() => onSelectSkill?.(skill)}
                 role="button"
                 tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    onSelectSkill?.(skill)
+                  }
+                }}
               >
                 {skill.icon} {skill.name}
               </div>
@@ -156,13 +162,12 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
         </div>
       ) : (
         messages.map((msg, index) => {
-          // If assistant content is empty (stream initializing), render skeleton loading
           const isThinking = msg.role === "assistant" && !msg.content
 
           return (
             <div key={index} className={`message-row ${msg.role}`}>
-              <div className="avatar-wrapper">
-                {msg.role === "user" ? <UserAvatar /> : msg.role === "system" ? <SystemAvatar /> : <AiAvatar />}
+              <div className="avatar">
+                {msg.role === "user" ? <UserIcon /> : msg.role === "system" ? <SystemIcon /> : <AiIcon />}
               </div>
 
               {isThinking ? (
@@ -172,7 +177,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
                     <span></span>
                     <span></span>
                   </div>
-                  <div className="thinking-text">AI 正在思考中...</div>
+                  <div className="thinking-text">思考中...</div>
                 </div>
               ) : (
                 <div className={`message-bubble ${msg.role}`}>

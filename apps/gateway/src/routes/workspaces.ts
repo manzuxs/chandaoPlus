@@ -23,5 +23,29 @@ export function registerWorkspaceRoutes(app: any, deps: any) {
     }
   })
 
+  router.put("/:id", async (req, res) => {
+    try {
+      const existing = await deps.workspaceStore.get(req.params.id)
+      if (!existing) {
+        res.status(404).json({ error: "workspace not found" })
+        return
+      }
+      const profile = WorkspaceProfileSchema.parse({ ...existing, ...req.body, id: req.params.id })
+      await deps.workspaceStore.save(profile)
+      res.json({ success: true })
+    } catch (err: any) {
+      res.status(400).json({ error: err.message })
+    }
+  })
+
+  router.delete("/:id", async (req, res) => {
+    try {
+      await deps.workspaceStore.delete(req.params.id)
+      res.json({ success: true })
+    } catch (err: any) {
+      res.status(400).json({ error: err.message })
+    }
+  })
+
   app.use("/api/workspaces", router)
 }
