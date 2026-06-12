@@ -14,3 +14,8 @@ export const CODEX_ARGS = process.env.CODEX_ARGS || "exec"
 export const WORKSPACE_STORE_PATH =
   process.env.WORKSPACE_STORE_PATH ||
   path.join(os.homedir(), ".chandaoplus", "workspaces.json")
+
+// Default location for skills storage file
+export const SKILL_STORE_PATH =
+  process.env.SKILL_STORE_PATH ||
+  path.join(os.homedir(), ".chandaoplus", "skills.json")

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react"
-import type { WorkspaceProfile, ChatMessage, ChatCommand } from "@chandaoplus/shared"
+import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill } from "@chandaoplus/shared"
+import { captureActiveTabPage } from "../../lib/page-capture"
 
 export function useChatSession() {
   const [workspaces, setWorkspaces] = useState<WorkspaceProfile[]>([])
+  const [skills, setSkills] = useState<Skill[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sending, setSending] = useState(false)
   const [statusText, setStatusText] = useState("")
@@ -19,9 +21,22 @@ export function useChatSession() {
     }
   }, [])
 
+  const loadSkills = useCallback(async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:3210/api/skills")
+      if (res.ok) {
+        const list = await res.json()
+        setSkills(list)
+      }
+    } catch (err) {
+      console.error("Failed to load skills from gateway:", err)
+    }
+  }, [])
+
   useEffect(() => {
     loadWorkspaces()
-  }, [loadWorkspaces])
+    loadSkills()
+  }, [loadWorkspaces, loadSkills])
 
   useEffect(() => {
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
@@ -71,33 +86,8 @@ export function useChatSession() {
     setMessages((prev) => [...prev, userMsg])
 
     try {
-      // In chrome extension context, we capture active tab via background proxy or chrome tabs API
-      // Since this hook should be testable without chrome APIs in Vitest/RTL, let's support a fallback or mock tab capture
-      let pageCapture = {
-        url: "https://zentao.local/mock-bug.html",
-        title: "Mock Bug",
-        markdown: "# Mock Bug Context",
-        images: [],
-        metadata: {}
-      }
-
-      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-        setStatusText("正在提取当前网页...")
-        // Call background to capture page
-        pageCapture = await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ type: "CAPTURE_ACTIVE_TAB" }, (response: any) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message))
-            } else if (!response) {
-              reject(new Error("No capture response received from background worker"))
-            } else if (response.error) {
-              reject(new Error(response.error))
-            } else {
-              resolve(response)
-            }
-          })
-        })
-      }
+      setStatusText("正在提取当前网页...")
+      const pageCapture = await captureActiveTabPage()
 
       setStatusText("正在连接网关...")
       const payload = {
@@ -177,13 +167,53 @@ export function useChatSession() {
     }
   }
 
+  const saveSkill = async (skill: Skill) => {
+    try {
+      const res = await fetch("http://127.0.0.1:3210/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(skill)
+      })
+      if (res.ok) {
+        await loadSkills()
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to save skill")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("保存技能失败")
+    }
+  }
+
+  const deleteSkill = async (id: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/skills/${id}`, {
+        method: "DELETE"
+      })
+      if (res.ok) {
+        await loadSkills()
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete skill")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("删除技能失败")
+    }
+  }
+
   return {
     workspaces,
+    skills,
     messages,
     sending,
     statusText,
     send,
     addWorkspace,
-    loadWorkspaces
+    loadWorkspaces,
+    saveSkill,
+    deleteSkill,
+    loadSkills
   }
 }

@@ -1,7 +1,22 @@
 import { z } from "zod"
 
 export const AgentKindSchema = z.enum(["claude-code", "codex"])
-export const ChatCommandSchema = z.enum(["estimate"])
+export const ChatCommandSchema = z.string().min(1)
+
+export const SkillSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  icon: z.string().default("⚡"),
+  description: z.string().default(""),
+  keywords: z.array(z.string()).default([]),
+  promptTemplate: z.string().min(1),
+  outputFormat: z.enum(["markdown", "json", "text"]).default("markdown"),
+  builtin: z.boolean().default(false),
+})
+
+export const SkillConfigSchema = z.object({
+  skills: z.array(SkillSchema),
+})
 
 export const WorkspaceProfileSchema = z.object({
   id: z.string().min(1),
@@ -53,3 +68,5 @@ export type PageCapture = z.infer<typeof PageCaptureSchema>
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
 export type ChatRequest = z.infer<typeof ChatRequestSchema>
 export type ChatStreamChunk = z.infer<typeof ChatStreamChunkSchema>
+export type Skill = z.infer<typeof SkillSchema>
+export type SkillConfig = z.infer<typeof SkillConfigSchema>

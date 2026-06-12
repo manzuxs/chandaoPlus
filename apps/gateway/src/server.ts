@@ -1,6 +1,7 @@
 import express from "express"
 import { registerChatRoutes } from "./routes/chat"
 import { registerWorkspaceRoutes } from "./routes/workspaces"
+import { registerSkillRoutes } from "./routes/skills"
 
 export function createServer(deps: any) {
   const app = express()
@@ -8,7 +9,7 @@ export function createServer(deps: any) {
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*")
     res.setHeader("Access-Control-Allow-Headers", "Content-Type")
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
     if (req.method === "OPTIONS") {
       res.sendStatus(200)
       return
@@ -16,6 +17,7 @@ export function createServer(deps: any) {
     next()
   })
   registerWorkspaceRoutes(app, deps)
+  registerSkillRoutes(app, deps)
   registerChatRoutes(app, deps)
   return app
 }

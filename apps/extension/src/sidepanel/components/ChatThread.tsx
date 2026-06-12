@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react"
-import type { ChatCommand, ChatMessage } from "@chandaoplus/shared"
+import type { ChatMessage, Skill } from "@chandaoplus/shared"
 
 interface ChatThreadProps {
   messages: ChatMessage[]
-  onSelectSkill?: (command: ChatCommand) => void
+  skills?: Skill[]
+  onSelectSkill?: (skill: Skill) => void
 }
 
 const UserAvatar = () => (
@@ -119,7 +120,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-export function ChatThread({ messages, onSelectSkill }: ChatThreadProps) {
+export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -140,14 +141,17 @@ export function ChatThread({ messages, onSelectSkill }: ChatThreadProps) {
           </div>
 
           <div className="skills-grid">
-            <div
-              className="skill-chip estimate"
-              onClick={() => onSelectSkill?.("estimate")}
-              role="button"
-              tabIndex={0}
-            >
-              评估工期与修复方案
-            </div>
+            {skills.map((skill) => (
+              <div
+                key={skill.id}
+                className={`skill-chip ${skill.id}`}
+                onClick={() => onSelectSkill?.(skill)}
+                role="button"
+                tabIndex={0}
+              >
+                {skill.icon} {skill.name}
+              </div>
+            ))}
           </div>
         </div>
       ) : (

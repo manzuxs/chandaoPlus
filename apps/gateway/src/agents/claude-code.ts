@@ -33,8 +33,17 @@ function streamProcess(
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
-  async run({ workspace, bundleDir, request, onChunk }: AgentRunOptions) {
-    const prompt = buildPrompt(request.command, workspace.rootPath, bundleDir, request.messages.at(-1)?.content ?? "")
+  async run({ workspace, bundleDir, request, skill, onChunk }: AgentRunOptions) {
+    const lastMessage = request.messages.at(-1)?.content ?? ""
+    const prompt = buildPrompt(
+      request.command,
+      workspace.rootPath,
+      bundleDir,
+      lastMessage,
+      request.page.title,
+      request.page.url,
+      skill
+    )
     const bin = process.env.CLAUDE_BIN || CLAUDE_BIN
     const rawArgs = process.env.CLAUDE_ARGS || CLAUDE_ARGS
     const args = rawArgs.split(/\s+/).filter(Boolean)

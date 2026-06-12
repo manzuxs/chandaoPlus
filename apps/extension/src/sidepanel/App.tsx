@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useRef } from "react"
-import type { ChatCommand } from "@chandaoplus/shared"
+import type { ChatCommand, Skill } from "@chandaoplus/shared"
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
+import { SkillManager } from "./components/SkillManager"
 import { useChatSession } from "./hooks/useChatSession"
+import { captureActiveTabPage, formatPageCapturePreview } from "../lib/page-capture"
 
-const COMMAND_PRESETS: Record<ChatCommand, string> = {
-  estimate: "请评估这个问题的修复工期、风险和建议方案。"
-}
+const CopyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <rect x="9" y="9" width="10" height="10" rx="2" />
+    <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" />
+  </svg>
+)
 
-const ALL_SLASH_COMMANDS = [
-  {
-    id: "estimate" as const,
-    icon: "⏱️",
-    name: "评估工期与修复方案",
-    desc: "/estimate",
-    keywords: ["estimate", "评估", "工期", "修复", "方案", "pg", "gq", "xf"]
-  }
-]
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
 
 export function App() {
   const [workspaceId, setWorkspaceId] = useState<string>("")
@@ -24,6 +25,9 @@ export function App() {
   const [agent, setAgent] = useState<"claude-code" | "codex">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [input, setInput] = useState("")
+  const [showSkillManager, setShowSkillManager] = useState(false)
+  const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
+  const [copyingPagePreview, setCopyingPagePreview] = useState(false)
 
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
@@ -32,7 +36,7 @@ export function App() {
   const [copiedStatus, setCopiedStatus] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, messages, sending, statusText, send, addWorkspace } = useChatSession()
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, saveSkill, deleteSkill } = useChatSession()
 
   // Load last used workspace id
   useEffect(() => {
@@ -59,20 +63,21 @@ export function App() {
   const getFilteredCommands = () => {
     if (!input.startsWith("/")) return []
     const query = input.slice(1).toLowerCase().trim()
-    if (!query) return ALL_SLASH_COMMANDS
-    return ALL_SLASH_COMMANDS.filter(cmd => 
-      cmd.desc.toLowerCase().includes(query) ||
-      cmd.name.toLowerCase().includes(query) ||
-      cmd.keywords.some(kw => kw.includes(query))
+    if (!query) return skills
+    return skills.filter(skill =>
+      skill.id.toLowerCase().includes(query) ||
+      skill.name.toLowerCase().includes(query) ||
+      skill.description.toLowerCase().includes(query) ||
+      skill.keywords.some(kw => kw.includes(query))
     )
   }
 
   const filteredCommands = getFilteredCommands()
   const showSlashMenu = input.startsWith("/") && filteredCommands.length > 0
 
-  const selectSlashCommand = (cmd: ChatCommand) => {
-    setCommand(cmd)
-    setInput(COMMAND_PRESETS[cmd])
+  const selectSlashCommand = (skill: Skill) => {
+    setCommand(skill.id)
+    setInput(skill.promptTemplate.split("\n")[0] || skill.name)
     // Focus the textarea and set cursor at the end
     setTimeout(() => {
       if (textareaRef.current) {
@@ -94,6 +99,23 @@ export function App() {
     }
   }
 
+  const handleCopyPagePreview = async () => {
+    if (copyingPagePreview) return
+
+    setCopyingPagePreview(true)
+    try {
+      const capture = await captureActiveTabPage()
+      const preview = formatPageCapturePreview(capture)
+      await navigator.clipboard.writeText(preview)
+      setPagePreviewCopied(true)
+      setTimeout(() => setPagePreviewCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy page preview:", err)
+    } finally {
+      setCopyingPagePreview(false)
+    }
+  }
+
   const formatStatusText = (text: string) => {
     if (!text) return ""
     if (copiedStatus) return "📋 已复制包绝对路径 ✔"
@@ -111,20 +133,49 @@ export function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <WorkspaceSwitcher
-          value={workspaceId}
-          onChange={handleWorkspaceChange}
-          workspaces={workspaces}
-          onAddWorkspace={addWorkspace}
-        />
+        <div className="app-header-left">
+          <button
+            type="button"
+            className={`btn-copy-page ${pagePreviewCopied ? "copied" : ""}`}
+            onClick={handleCopyPagePreview}
+            aria-label="复制当前网页内容"
+            title={pagePreviewCopied ? "已复制网页内容" : "复制当前要发送给 Agent 的网页内容"}
+            disabled={copyingPagePreview}
+          >
+            {pagePreviewCopied ? <CheckIcon /> : <CopyIcon />}
+          </button>
+          <WorkspaceSwitcher
+            value={workspaceId}
+            onChange={handleWorkspaceChange}
+            workspaces={workspaces}
+            onAddWorkspace={addWorkspace}
+          />
+        </div>
+        <button
+          className="btn-manage-skills"
+          onClick={() => setShowSkillManager(!showSkillManager)}
+          title="管理技能"
+        >
+          ⚡
+        </button>
       </header>
+
+      {showSkillManager && (
+        <SkillManager
+          skills={skills}
+          onSave={saveSkill}
+          onDelete={deleteSkill}
+          onClose={() => setShowSkillManager(false)}
+        />
+      )}
 
       <div className="app-body">
         <ChatThread
           messages={messages}
-          onSelectSkill={(cmd) => {
-            setCommand(cmd)
-            setInput(COMMAND_PRESETS[cmd])
+          skills={skills}
+          onSelectSkill={(skill) => {
+            setCommand(skill.id)
+            setInput(skill.promptTemplate.split("\n")[0] || skill.name)
           }}
         />
       </div>
@@ -150,13 +201,16 @@ export function App() {
 
         {messages.length > 0 && !sending && (
           <div className="quick-skills-row">
-            <button
-              type="button"
-              className="quick-skill-pill estimate"
-              onClick={() => selectSlashCommand("estimate")}
-            >
-              ⏱️ 评估
-            </button>
+            {skills.map((skill) => (
+              <button
+                key={skill.id}
+                type="button"
+                className={`quick-skill-pill ${skill.id}`}
+                onClick={() => selectSlashCommand(skill)}
+              >
+                {skill.icon} {skill.name}
+              </button>
+            ))}
           </div>
         )}
 
@@ -164,15 +218,15 @@ export function App() {
           {showSlashMenu && (
             <div className="slash-menu-modern">
               <div className="slash-menu-header">快捷技能 (点击选择)</div>
-              {filteredCommands.map((cmd) => (
+              {filteredCommands.map((skill) => (
                 <div
-                  key={cmd.id}
+                  key={skill.id}
                   className="slash-menu-item"
-                  onClick={() => selectSlashCommand(cmd.id)}
+                  onClick={() => selectSlashCommand(skill)}
                 >
-                  <span className="item-icon">{cmd.icon}</span>
-                  <span className="item-name">{cmd.name}</span>
-                  <span className="item-desc">{cmd.desc}</span>
+                  <span className="item-icon">{skill.icon}</span>
+                  <span className="item-name">{skill.name}</span>
+                  <span className="item-desc">/{skill.id}</span>
                 </div>
               ))}
             </div>

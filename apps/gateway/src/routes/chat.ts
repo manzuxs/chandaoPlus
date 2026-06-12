@@ -32,10 +32,12 @@ export function registerChatRoutes(app: any, deps: any) {
       }
 
       try {
+        const skill = await deps.skillStore.get(request.command)
         await adapter.run({
           request,
           workspace,
           bundleDir,
+          skill,
           onChunk: (chunk: any) => {
             res.write(`data: ${JSON.stringify(chunk)}\n\n`)
           }
