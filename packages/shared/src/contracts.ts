@@ -46,10 +46,33 @@ export const ChatMessageSchema = z.object({
   content: z.string().min(1)
 })
 
+export const SessionSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string(),
+  title: z.string().optional(),
+  messages: z.array(ChatMessageSchema),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const SessionListItemSchema = z.object({
+  id: z.string().uuid(),
+  workspaceId: z.string(),
+  title: z.string().optional(),
+  messageCount: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const CreateSessionRequestSchema = z.object({
+  workspaceId: z.string(),
+})
+
 export const ChatRequestSchema = z.object({
   workspaceId: z.string().min(1),
   agent: AgentKindSchema,
   command: ChatCommandSchema,
+  sessionId: z.string().uuid().optional(),
   page: PageCaptureSchema,
   messages: z.array(ChatMessageSchema).min(1)
 })
@@ -66,6 +89,9 @@ export type WorkspaceProfile = z.infer<typeof WorkspaceProfileSchema>
 export type PageImage = z.infer<typeof PageImageSchema>
 export type PageCapture = z.infer<typeof PageCaptureSchema>
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
+export type Session = z.infer<typeof SessionSchema>
+export type SessionListItem = z.infer<typeof SessionListItemSchema>
+export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 export type ChatRequest = z.infer<typeof ChatRequestSchema>
 export type ChatStreamChunk = z.infer<typeof ChatStreamChunkSchema>
 export type Skill = z.infer<typeof SkillSchema>
