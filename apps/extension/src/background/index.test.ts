@@ -45,7 +45,7 @@ describe("runChatFromActiveTab", () => {
       },
       {
         result: {
-          url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10765",
+          url: "https://zentao.example.com/index.php?m=bug&f=view&bugID=10765",
           title: "BUG #10765",
           markdown: "## 重现步骤\n\n部分字段没有翻译\n\n## 历史记录\n\n交易说明填写信息无需国际化",
           images: [],

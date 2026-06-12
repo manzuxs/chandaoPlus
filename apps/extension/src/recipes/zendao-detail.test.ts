@@ -4,7 +4,7 @@ import { extractZentaoBugDetailPageCapture, isZentaoBugDetailUrl } from "./zenda
 describe("zentao-detail", () => {
   it("recognizes both legacy and query-string bug detail URLs", () => {
     expect(isZentaoBugDetailUrl("https://zentao.local/bug-view-123.html")).toBe(true)
-    expect(isZentaoBugDetailUrl("https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10765")).toBe(true)
+    expect(isZentaoBugDetailUrl("https://zentao.example.com/index.php?m=bug&f=view&bugID=10765")).toBe(true)
     expect(isZentaoBugDetailUrl("https://zentao.local/index.php?m=product&f=view&id=1")).toBe(false)
   })
 
@@ -49,13 +49,13 @@ describe("zentao-detail", () => {
                 </div>
                 <div class="detail-sections canvas shadow rounded" zui-key="historyWrapper">
                   <div
-                    zui-create-historypanel="{&quot;objectID&quot;:10765,&quot;objectType&quot;:&quot;bug&quot;,&quot;actions&quot;:[{&quot;id&quot;:&quot;231357&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 16:45:59, 由 &lt;strong&gt;官笑明&lt;\/strong&gt; 指派给 &lt;strong&gt;唐辉煌&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;交易说明应该是用户填写的内容，不应该国际化，商品信息、角色需要国际化&lt;\/span&gt;&lt;\/p&gt;&quot;},{&quot;id&quot;:&quot;231361&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 16:48:00, 由 &lt;strong&gt;唐辉煌&lt;\/strong&gt; 指派给 &lt;strong&gt;周灿培&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;麻烦确认下修改方案&lt;\/span&gt;&lt;\/p&gt;&quot;},{&quot;id&quot;:&quot;231400&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 17:22:57, 由 &lt;strong&gt;周灿培&lt;\/strong&gt; 指派给 &lt;strong&gt;唐辉煌&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;交易说明填写信息无需国际化，商品信息、角色需要国际化&lt;\/span&gt;&lt;\/p&gt;&quot;}]}"
+                    zui-create-historypanel="{&quot;objectID&quot;:10765,&quot;objectType&quot;:&quot;bug&quot;,&quot;actions&quot;:[{&quot;id&quot;:&quot;231357&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 16:45:59, 由 &lt;strong&gt;张三&lt;\/strong&gt; 指派给 &lt;strong&gt;李四&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;交易说明应该是用户填写的内容，不应该国际化，商品信息、角色需要国际化&lt;\/span&gt;&lt;\/p&gt;&quot;},{&quot;id&quot;:&quot;231361&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 16:48:00, 由 &lt;strong&gt;李四&lt;\/strong&gt; 指派给 &lt;strong&gt;王五&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;麻烦确认下修改方案&lt;\/span&gt;&lt;\/p&gt;&quot;},{&quot;id&quot;:&quot;231400&quot;,&quot;action&quot;:&quot;assigned&quot;,&quot;hasRendered&quot;:true,&quot;content&quot;:&quot;2026-06-10 17:22:57, 由 &lt;strong&gt;王五&lt;\/strong&gt; 指派给 &lt;strong&gt;李四&lt;\/strong&gt;。\n&quot;,&quot;comment&quot;:&quot;&lt;p&gt;&lt;span&gt;交易说明填写信息无需国际化，商品信息、角色需要国际化&lt;\/span&gt;&lt;\/p&gt;&quot;}]}"
                   ></div>
                 </div>
               </div>
               <aside class="detail-side side-col">
                 <div><span>Bug状态</span><span class="status">激活</span></div>
-                <div><span>指派给</span><span class="assignedTo">官笑明</span></div>
+                <div><span>指派给</span><span class="assignedTo">张三</span></div>
               </aside>
             </div>
           </div>
@@ -64,7 +64,7 @@ describe("zentao-detail", () => {
     `
 
     const result = await extractZentaoBugDetailPageCapture({
-      url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10765",
+      url: "https://zentao.example.com/index.php?m=bug&f=view&bugID=10765",
       html,
       title: "BUG #10765"
     })
@@ -73,7 +73,7 @@ describe("zentao-detail", () => {
     expect(result?.metadata.bugId).toBe("10765")
     expect(result?.metadata.title).toBe("【uat】采购商-交易-寻源-待报价寻源需求单-查看报价，待报价寻源需求单详情页部分字段未做翻译")
     expect(result?.metadata.status).toBe("激活")
-    expect(result?.metadata.assignedTo).toBe("官笑明")
+    expect(result?.metadata.assignedTo).toBe("张三")
     expect(result?.markdown).toContain("重现步骤")
     expect(result?.markdown).toContain("翻译成对应语言")
     expect(result?.markdown).toContain("历史记录")
@@ -82,6 +82,6 @@ describe("zentao-detail", () => {
     expect(result?.markdown).toContain("交易说明填写信息无需国际化")
     expect(result?.markdown).not.toContain("地盘")
     expect(result?.markdown).not.toContain("返回")
-    expect(result?.images[0]?.sourceUrl).toBe("https://cd.shushangyun.com/index.php?m=file&f=read&t=png&fileID=21648")
+    expect(result?.images[0]?.sourceUrl).toBe("https://zentao.example.com/index.php?m=file&f=read&t=png&fileID=21648")
   })
 })
