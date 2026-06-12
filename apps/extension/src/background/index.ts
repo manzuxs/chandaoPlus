@@ -9,6 +9,46 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     return null
   }
 
+  const getBase64FromImage = async (img: HTMLImageElement, sourceUrl: string): Promise<string> => {
+    try {
+      if (img.complete && (img.naturalWidth || img.width) > 0) {
+        const canvas = document.createElement("canvas")
+        canvas.width = img.naturalWidth || img.width
+        canvas.height = img.naturalHeight || img.height
+        const ctx = canvas.getContext("2d")
+        if (ctx) {
+          ctx.drawImage(img, 0, 0)
+          const dataURL = canvas.toDataURL("image/png")
+          const base64 = dataURL.split(",")[1]
+          if (base64 && base64.length > 100) {
+            return base64
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Canvas export failed, falling back to fetch:", err)
+    }
+
+    try {
+      const res = await fetch(sourceUrl, { credentials: "include" })
+      if (!res.ok) return ""
+      const blob = await res.blob()
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result as string
+          const base64 = result.split(",")[1] || ""
+          resolve(base64)
+        }
+        reader.onerror = () => resolve("")
+        reader.readAsDataURL(blob)
+      })
+    } catch (err) {
+      console.error("Failed to fetch image as base64:", sourceUrl, err)
+      return ""
+    }
+  }
+
   const bugId = parsedUrl.searchParams.get("bugID") || parsedUrl.searchParams.get("bugId") || currentUrl.match(/bug-view-(\d+)/i)?.[1] || ""
   const isBugDetail =
     /bug-view-\d+/i.test(currentUrl) ||
@@ -124,7 +164,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
       .filter(Boolean)
   }
 
-  const buildCapture = (targetDocument: Document, captureSource: string, sourceText = ""): PageCapture | null => {
+  const buildCapture = async (targetDocument: Document, captureSource: string, sourceText = ""): Promise<PageCapture | null> => {
     const root = targetDocument.querySelector("#mainContent") || targetDocument.querySelector("#main") || targetDocument.body
     const titleElement = root.querySelector(".entity-title-text, h1, .main-header h1, .main-title")
     const title = normalizeText(titleElement?.textContent) || document.title
@@ -177,19 +217,26 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
       markdownParts.push(historyLines.map((line) => `- ${line.replace(/\n/g, "\n  ")}`).join("\n"))
     }
 
-    const images = Array.from(root.querySelectorAll("img"))
+    const imageElements = Array.from(root.querySelectorAll("img"))
       .filter((image) => {
         const src = image.getAttribute("src") || ""
         return src && !src.includes("static/svg/chat.svg")
       })
       .slice(0, 8)
-      .map((image, index) => ({
-        filename: `image-${index + 1}.png`,
-        alt: image.getAttribute("alt") || "",
-        mimeType: "image/png",
-        sourceUrl: absoluteUrl(image.getAttribute("src") || ""),
-        base64Data: ""
-      }))
+
+    const images = await Promise.all(
+      imageElements.map(async (image, index) => {
+        const sourceUrl = absoluteUrl(image.getAttribute("src") || "")
+        const base64Data = await getBase64FromImage(image, sourceUrl)
+        return {
+          filename: `image-${index + 1}.png`,
+          alt: image.getAttribute("alt") || "",
+          mimeType: "image/png",
+          sourceUrl,
+          base64Data
+        }
+      })
+    )
 
     const metadata: Record<string, string> = {
       pageKind: "zentao-bug-detail",
@@ -202,7 +249,6 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
 
     const markdown = markdownParts.filter(Boolean).join("\n\n")
 
-    // 如果内容只有标题（没有提取到 BUG 详情），返回 null 触发后续 fallback
     if (markdownParts.length <= 1) {
       return null
     }
@@ -216,7 +262,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     }
   }
 
-  const liveCapture = buildCapture(document, "live-dom", document.documentElement.outerHTML)
+  const liveCapture = await buildCapture(document, "live-dom", document.documentElement.outerHTML)
   if (liveCapture) return liveCapture
 
   try {
@@ -244,7 +290,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     } catch {}
 
     if (!html) return null
-    return buildCapture(parseHtml(html), "zin-api", `${text}\n${html}`)
+    return await buildCapture(parseHtml(html), "zin-api", `${text}\n${html}`)
   } catch (err) {
     console.error("Failed to fetch ZenTao zin detail:", err)
     return null
