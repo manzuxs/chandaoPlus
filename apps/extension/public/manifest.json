@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "chandaoPlus",
   "version": "0.1.0",
+  "description": "禅道增强助手 — 从禅道页面提取内容，通过 AI 评估 Bug 修复工期与方案",
   "permissions": ["storage", "activeTab", "scripting", "tabs", "sidePanel"],
   "host_permissions": ["<all_urls>", "http://127.0.0.1:3210/*", "http://localhost:3210/*"],
   "background": {
@@ -15,10 +16,16 @@
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/index.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
   "action": {
-    "default_title": "Open Chat Panel"
+    "default_title": "chandaoPlus — 打开侧边栏"
   }
 }

@@ -1,6 +1,6 @@
 import { extractPageCapture, hydrateImageAssets } from "@chandaoplus/extractor"
 import type { PageCapture } from "@chandaoplus/shared"
-import { detectZentaoBugDetail } from "../recipes/zendao-detail"
+import { detectZentaoBugDetail, extractZentaoBugDetailPageCapture } from "../recipes/zendao-detail"
 import { collectZentaoBugLinks } from "../recipes/zendao-list"
 
 async function fetchImageBase64(imgUrl: string): Promise<string> {
@@ -15,6 +15,22 @@ async function fetchImageBase64(imgUrl: string): Promise<string> {
     }
     reader.onerror = reject
     reader.readAsDataURL(blob)
+  })
+}
+
+async function buildPageCapture(input: { html: string; url: string; title: string }): Promise<PageCapture> {
+  const zentaoCapture = await extractZentaoBugDetailPageCapture({
+    url: input.url,
+    html: input.html,
+    title: input.title
+  })
+
+  if (zentaoCapture) return zentaoCapture
+
+  return extractPageCapture({
+    html: input.html,
+    baseUrl: input.url,
+    title: input.title
   })
 }
 
@@ -55,15 +71,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           }
           const htmlText = await fetchRes.text()
 
-          let bugCapture = await extractPageCapture({
+          let bugCapture = await buildPageCapture({
             html: htmlText,
-            baseUrl: bugUrl,
+            url: bugUrl,
             title: `BUG ${i + 1}`
           })
 
           bugCapture = await hydrateImageAssets(fetchImageBase64, bugCapture)
 
-          const zentaoMatch = detectZentaoBugDetail({ url: bugUrl, html: htmlText })
+          const zentaoMatch = await detectZentaoBugDetail({ url: bugUrl, html: htmlText, title: `BUG ${i + 1}` })
           if (zentaoMatch) {
             bugCapture.metadata = {
               ...bugCapture.metadata,
@@ -95,15 +111,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   // Standard single page flow
-  extractPageCapture({
+  buildPageCapture({
     html,
-    baseUrl: url,
+    url,
     title
   })
     .then((capture: PageCapture) => hydrateImageAssets(fetchImageBase64, capture))
-    .then((hydratedCapture: PageCapture) => {
+    .then(async (hydratedCapture: PageCapture) => {
       // Enrich with ZenTao metadata if applicable
-      const zentaoMatch = detectZentaoBugDetail({ url, html })
+      const zentaoMatch = await detectZentaoBugDetail({ url, html, title })
       if (zentaoMatch) {
         hydratedCapture.metadata = {
           ...hydratedCapture.metadata,

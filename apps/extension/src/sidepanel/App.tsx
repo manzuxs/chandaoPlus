@@ -4,6 +4,7 @@ import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
 import { SkillManager } from "./components/SkillManager"
 import { useChatSession } from "./hooks/useChatSession"
+import { captureActiveTabPage, formatPageCapturePreview } from "../lib/page-capture"
 
 // SVG Icons
 const CopyIcon = () => (
@@ -46,6 +47,8 @@ export function App() {
   const [input, setInput] = useState("")
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [copiedStatus, setCopiedStatus] = useState(false)
+  const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
+  const [copyingPagePreview, setCopyingPagePreview] = useState(false)
 
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
@@ -115,6 +118,22 @@ export function App() {
     }
   }
 
+  const handleCopyPagePreview = async () => {
+    if (copyingPagePreview) return
+
+    setCopyingPagePreview(true)
+    try {
+      const capture = await captureActiveTabPage()
+      await navigator.clipboard.writeText(formatPageCapturePreview(capture))
+      setPagePreviewCopied(true)
+      setTimeout(() => setPagePreviewCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy page preview:", err)
+    } finally {
+      setCopyingPagePreview(false)
+    }
+  }
+
   const formatStatusText = (text: string) => {
     if (!text) return ""
     if (copiedStatus) return "已复制路径"
@@ -140,21 +159,22 @@ export function App() {
           />
           <button
             type="button"
+            className={`btn-icon ${pagePreviewCopied ? "copied" : ""}`}
+            onClick={handleCopyPagePreview}
+            aria-label="复制当前网页内容"
+            title={pagePreviewCopied ? "已复制当前网页内容" : "复制当前要发送给 Agent 的网页内容"}
+            disabled={copyingPagePreview}
+          >
+            {pagePreviewCopied ? <CheckIcon /> : <CopyIcon />}
+          </button>
+          <button
+            type="button"
             className="btn-icon"
             onClick={() => setShowSkillManager(!showSkillManager)}
             title="管理技能"
             aria-label="管理技能"
           >
             <BoltIcon />
-          </button>
-          <button
-            type="button"
-            className={`btn-icon ${copiedStatus ? "copied" : ""}`}
-            onClick={handleStatusClick}
-            aria-label="复制路径"
-            title="复制上下文路径"
-          >
-            {copiedStatus ? <CheckIcon /> : <CopyIcon />}
           </button>
         </div>
       </header>
@@ -233,6 +253,20 @@ export function App() {
             ref={textareaRef}
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                if (workspaceId && !sending && input.trim()) {
+                  send({
+                    workspaceId,
+                    agent,
+                    command,
+                    input
+                  })
+                  setInput("")
+                }
+              }
+            }}
             placeholder='输入 "/" 查看可用技能...'
             disabled={sending}
           />
@@ -291,14 +325,15 @@ export function App() {
               className="btn-send"
               aria-label="发送"
               disabled={!workspaceId || sending}
-              onClick={() =>
+              onClick={() => {
                 send({
                   workspaceId,
                   agent,
                   command,
                   input
                 })
-              }
+                setInput("")
+              }}
             >
               <SendIcon />
             </button>

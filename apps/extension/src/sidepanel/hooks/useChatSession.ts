@@ -121,6 +121,7 @@ export function useChatSession() {
     const userMsg: ChatMessage = { role: "user", content: params.input || `执行命令: ${params.command}` }
     setMessages((prev) => [...prev, userMsg])
 
+    let isAssistantMsgAdded = false
     try {
       setStatusText("正在提取当前网页...")
       const pageCapture = await captureActiveTabPage()
@@ -152,6 +153,7 @@ export function useChatSession() {
 
       // Append empty assistant message for streaming
       setMessages((prev) => [...prev, assistantMsg])
+      isAssistantMsgAdded = true
 
       while (reader) {
         const { done, value } = await reader.read()
@@ -194,10 +196,26 @@ export function useChatSession() {
     } catch (err: any) {
       console.error(err)
       setStatusText(`连接错误: ${err.message}`)
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `发送请求失败: ${err.message}` }
-      ])
+      if (isAssistantMsgAdded) {
+        setMessages((prev) => {
+          const next = [...prev]
+          const lastMsg = next[next.length - 1]
+          if (lastMsg && lastMsg.role === "assistant") {
+            next[next.length - 1] = {
+              ...lastMsg,
+              content: lastMsg.content
+                ? `${lastMsg.content}\n[发送请求失败: ${err.message}]`
+                : `发送请求失败: ${err.message}`
+            }
+          }
+          return next
+        })
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `发送请求失败: ${err.message}` }
+        ])
+      }
     } finally {
       setSending(false)
     }

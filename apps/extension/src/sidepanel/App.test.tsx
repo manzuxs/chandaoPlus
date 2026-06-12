@@ -110,7 +110,7 @@ describe("App", () => {
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: "/" } })
     
-    expect(screen.getByText("快捷技能 (点击选择)")).toBeTruthy()
+    expect(screen.getByText("快捷技能")).toBeTruthy()
     expect(screen.getAllByText("⏱️ 评估工期与修复方案").length).toBe(1)
     expect(screen.getByText("/estimate")).toBeTruthy()
     expect(screen.queryByText("获取修复建议")).toBeNull()
@@ -120,7 +120,7 @@ describe("App", () => {
     expect(screen.getAllByText("⏱️ 评估工期与修复方案").length).toBe(1)
 
     fireEvent.change(textarea, { target: { value: "/rep" } })
-    expect(screen.queryByText("快捷技能 (点击选择)")).toBeNull()
+    expect(screen.queryByText("快捷技能")).toBeNull()
     expect(screen.queryByText("/estimate")).toBeNull()
   })
 
@@ -128,7 +128,15 @@ describe("App", () => {
     render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
-    fireEvent.click(screen.getByRole("button", { name: "复制当前网页内容" }))
+    const headerActions = screen.getByRole("button", { name: "选择工作空间" }).parentElement
+    const copyButton = screen.getByRole("button", { name: "复制当前网页内容" })
+    const skillButton = screen.getByRole("button", { name: "管理技能" })
+
+    expect(headerActions?.children[0]).toBe(screen.getByRole("button", { name: "选择工作空间" }))
+    expect(headerActions?.children[1]).toBe(copyButton)
+    expect(headerActions?.children[2]).toBe(skillButton)
+
+    fireEvent.click(copyButton)
 
     await waitFor(() => {
       expect(sendMessageMock).toHaveBeenCalledWith(
