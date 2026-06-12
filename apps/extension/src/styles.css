@@ -388,6 +388,29 @@ button {
   font-weight: var(--weight-medium);
 }
 
+/* Session Selector */
+.session-selector {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.session-select {
+  width: 100%;
+  padding: var(--space-xxs) var(--space-xs);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.session-select:focus {
+  outline: 2px solid var(--accent, #6c5ce7);
+  outline-offset: -2px;
+}
+
 /* Message Block & Actions */
 .message-block {
   display: flex;

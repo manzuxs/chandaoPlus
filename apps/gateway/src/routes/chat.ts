@@ -53,6 +53,16 @@ export function registerChatRoutes(app: any, deps: any) {
 
       let assistantContent = ""
 
+      // 流中断时持久化已接收的部分助手消息
+      req.on("close", () => {
+        if (assistantContent) {
+          deps.sessionStore.appendMessage(sessionId!, {
+            role: "assistant",
+            content: assistantContent + "\n\n[连接中断]",
+          }).catch(() => {})
+        }
+      })
+
       try {
         const skill = await deps.skillStore.get(request.command)
         await adapter.run({

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import type { ChatMessage, Skill } from "@chandaoplus/shared"
+import type { ChatMessage, SessionListItem, Skill } from "@chandaoplus/shared"
 
 // SVG Icons
 const UserIcon = () => (
@@ -41,6 +41,9 @@ interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
   onSelectSkill?: (skill: Skill) => void
+  sessions?: SessionListItem[]
+  activeSessionId?: string | null
+  onSwitchSession?: (sessionId: string) => void
 }
 
 function renderMarkdown(md: string): string {
@@ -167,7 +170,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadProps) {
+export function ChatThread({ messages, skills = [], onSelectSkill, sessions, activeSessionId, onSwitchSession }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -178,6 +181,21 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
 
   return (
     <div className="chat-thread" ref={containerRef}>
+      {sessions && sessions.length > 1 && (
+        <div className="session-selector">
+          <select
+            value={activeSessionId ?? ""}
+            onChange={(e) => onSwitchSession?.(e.target.value)}
+            className="session-select"
+          >
+            {sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title || s.id.slice(0, 8)} ({s.messageCount} 条消息)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {messages.length === 0 ? (
         <div className="empty-thread">
           <div className="welcome-section">

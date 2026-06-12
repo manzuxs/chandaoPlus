@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import type { ChatCommand, Skill } from "@chandaoplus/shared"
+import type { ChatCommand, SessionListItem, Skill } from "@chandaoplus/shared"
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
 import { SkillManager } from "./components/SkillManager"
@@ -49,6 +49,7 @@ export function App() {
   const [copiedStatus, setCopiedStatus] = useState(false)
   const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
+  const [sessions, setSessions] = useState<SessionListItem[]>([])
 
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
@@ -68,6 +69,33 @@ export function App() {
       })
     }
   }, [])
+
+  // Load session list for workspace
+  useEffect(() => {
+    if (!workspaceId) return
+    fetch(`http://127.0.0.1:3210/api/sessions?workspaceId=${workspaceId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setSessions(data)
+      })
+      .catch(() => {})
+  }, [workspaceId, sessionId])
+
+  const handleSwitchSession = (newSessionId: string) => {
+    fetch(`http://127.0.0.1:3210/api/sessions/${newSessionId}`)
+      .then((r) => r.json())
+      .then((session) => {
+        if (session.messages) {
+          // The useChatSession hook manages its own messages state,
+          // so we trigger a page reload-like behavior by setting session via storage
+          if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ [`session_${workspaceId}`]: newSessionId })
+          }
+          window.location.reload()
+        }
+      })
+      .catch(() => {})
+  }
 
   const handleWorkspaceChange = (id: string) => {
     setWorkspaceId(id)
@@ -206,6 +234,9 @@ export function App() {
         <ChatThread
           messages={messages}
           skills={skills}
+          sessions={sessions}
+          activeSessionId={sessionId}
+          onSwitchSession={handleSwitchSession}
           onSelectSkill={(skill) => {
             setCommand(skill.id)
             setInput(skill.promptTemplate.split("\n")[0] || skill.name)
