@@ -478,24 +478,57 @@ button {
 
 .message-content table {
   width: 100%;
-  border-collapse: collapse;
-  margin: var(--space-sm) 0;
-  font-size: 0.9em;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: var(--space-md) 0;
+  font-size: 13px;
   border: var(--space-hair) solid var(--hairline);
   border-radius: var(--radius-md);
   overflow: hidden;
+  background-color: var(--canvas);
 }
 
 .message-content th,
 .message-content td {
-  border: var(--space-hair) solid var(--hairline);
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   text-align: left;
+  line-height: 1.5;
+  border-bottom: var(--space-hair) solid var(--hairline);
+}
+
+.message-content tr:last-child td {
+  border-bottom: none;
 }
 
 .message-content th {
   background-color: var(--surface-soft);
+  color: var(--ink);
   font-weight: var(--weight-semibold);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: var(--space-hair) solid var(--hairline);
+}
+
+.message-content tr:nth-child(even) td {
+  background-color: rgba(0, 0, 0, 0.015);
+}
+
+@media (prefers-color-scheme: dark) {
+  .message-content tr:nth-child(even) td {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.message-content tr:hover td {
+  background-color: var(--hairline-soft);
+}
+
+.message-content hr {
+  border: none;
+  border-top: var(--space-hair) solid var(--hairline);
+  margin: var(--space-md) 0;
+  width: 100%;
 }
 
 /* === Footer & Input === */

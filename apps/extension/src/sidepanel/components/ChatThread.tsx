@@ -54,50 +54,85 @@ function renderMarkdown(md: string): string {
   html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>")
   html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>")
   html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>")
+  html = html.replace(/^---$/gim, "<hr />")
 
   const lines = html.split("\n")
   let inTable = false
   let inList = false
+  let inPre = false
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
 
-    if (line.startsWith("- ") || /^-\s/.test(line)) {
-      const content = `<li>${line.replace(/^-\s+/, "")}</li>`
-      if (!inList) {
-        inList = true
-        lines[i] = "<ul>" + content
-      } else {
-        lines[i] = content
-      }
-    } else {
+    if (lines[i].includes("<pre>")) {
+      inPre = true
+    }
+
+    if (line === "---" || line === "<hr />") {
+      lines[i] = "<hr />"
       if (inList) {
         inList = false
-        lines[i] = "</ul>" + lines[i]
+        lines[i] = "</ul><hr />"
+      }
+      if (inTable) {
+        inTable = false
+        lines[i] = "</tbody></table><hr />"
+      }
+      continue
+    }
+
+    if (!inPre) {
+      if (line.startsWith("- ") || /^-\s/.test(line)) {
+        const content = `<li>${line.replace(/^-\s+/, "")}</li>`
+        if (!inList) {
+          inList = true
+          lines[i] = "<ul>" + content
+        } else {
+          lines[i] = content
+        }
+      } else {
+        if (inList) {
+          inList = false
+          lines[i] = "</ul>" + lines[i]
+        }
+      }
+
+      if (line.startsWith("|") && line.endsWith("|")) {
+        const cells = line.split("|").slice(1, -1).map((c) => c.trim())
+        if (!inTable) {
+          inTable = true
+          lines[i] = "<table><thead><tr>" + cells.map((c) => `<th>${c}</th>`).join("") + "</tr></thead><tbody>"
+        } else {
+          if (cells.every((c) => /^:-*:$/.test(c) || /^-+$/.test(c))) {
+            lines[i] = ""
+          } else {
+            lines[i] = "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>"
+          }
+        }
+      } else {
+        if (inTable) {
+          inTable = false
+          lines[i] = "</tbody></table>" + lines[i]
+        }
+      }
+
+      if (!inList && !inTable && line !== "") {
+        if (!/^(<h[1-6]>|<hr|<ul>|<table>|<pre>)/.test(line)) {
+          lines[i] = `<p>${lines[i]}</p>`
+        }
       }
     }
 
-    if (line.startsWith("|") && line.endsWith("|")) {
-      const cells = line.split("|").slice(1, -1).map((c) => c.trim())
-      if (!inTable) {
-        inTable = true
-        lines[i] = "<table><thead><tr>" + cells.map((c) => `<th>${c}</th>`).join("") + "</tr></thead><tbody>"
-      } else {
-        if (cells.every((c) => /^:-*:$/.test(c) || /^-+$/.test(c))) {
-          lines[i] = ""
-        } else {
-          lines[i] = "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>"
-        }
-      }
-    } else {
-      if (inTable) {
-        inTable = false
-        lines[i] = "</tbody></table>" + lines[i]
-      }
+    if (lines[i].includes("</pre>")) {
+      inPre = false
     }
   }
 
-  html = lines.join("\n")
+  let suffix = ""
+  if (inList) suffix += "</ul>"
+  if (inTable) suffix += "</tbody></table>"
+
+  html = lines.join("\n") + suffix
   return html
 }
 
