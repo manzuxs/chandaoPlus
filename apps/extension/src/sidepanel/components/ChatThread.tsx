@@ -31,6 +31,12 @@ const CopyIcon = () => (
   </svg>
 )
 
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
 interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
@@ -150,8 +156,13 @@ function CopyButton({ text }: { text: string }) {
   }
 
   return (
-    <button className="btn-copy" onClick={handleCopy} type="button" title={copied ? "已复制" : "复制"}>
-      <CopyIcon />
+    <button
+      className={`btn-copy ${copied ? "copied" : ""}`}
+      onClick={handleCopy}
+      type="button"
+      title={copied ? "已复制" : "复制"}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
     </button>
   )
 }
@@ -215,17 +226,21 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
                   <div className="thinking-text">思考中...</div>
                 </div>
               ) : (
-                <div className={`message-bubble ${msg.role}`}>
-                  {msg.role === "assistant" ? (
-                    <>
+                <div className="message-block">
+                  <div className={`message-bubble ${msg.role}`}>
+                    {msg.role === "assistant" ? (
                       <div
                         className="message-content"
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                       />
+                    ) : (
+                      <div className="message-content">{msg.content}</div>
+                    )}
+                  </div>
+                  {msg.role === "assistant" && (
+                    <div className="message-actions">
                       <CopyButton text={msg.content} />
-                    </>
-                  ) : (
-                    <div className="message-content">{msg.content}</div>
+                    </div>
                   )}
                 </div>
               )}

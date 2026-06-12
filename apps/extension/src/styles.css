@@ -388,17 +388,34 @@ button {
   font-weight: var(--weight-medium);
 }
 
+/* Message Block & Actions */
+.message-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: var(--space-xxs);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.message-block:hover .message-actions {
+  opacity: 1;
+}
+
 /* Copy Button */
 .btn-copy {
-  position: absolute;
-  top: var(--space-xs);
-  right: var(--space-xs);
   width: 28px;
   height: 28px;
   border-radius: var(--radius-full);
   background-color: transparent;
   color: var(--ink);
-  opacity: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -411,8 +428,8 @@ button {
   background-color: var(--hairline);
 }
 
-.message-bubble.assistant:hover .btn-copy {
-  opacity: 1;
+.btn-copy.copied {
+  color: var(--semantic-success);
 }
 
 .btn-copy svg {
