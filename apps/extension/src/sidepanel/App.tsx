@@ -57,7 +57,7 @@ export function App() {
   }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, sessionId } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, loadSession, sessionId } = useChatSession(workspaceId)
 
   // Load last used workspace id
   useEffect(() => {
@@ -82,19 +82,7 @@ export function App() {
   }, [workspaceId, sessionId])
 
   const handleSwitchSession = (newSessionId: string) => {
-    fetch(`http://127.0.0.1:3210/api/sessions/${newSessionId}`)
-      .then((r) => r.json())
-      .then((session) => {
-        if (session.messages) {
-          // The useChatSession hook manages its own messages state,
-          // so we trigger a page reload-like behavior by setting session via storage
-          if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.set({ [`session_${workspaceId}`]: newSessionId })
-          }
-          window.location.reload()
-        }
-      })
-      .catch(() => {})
+    loadSession(newSessionId)
   }
 
   const handleWorkspaceChange = (id: string) => {

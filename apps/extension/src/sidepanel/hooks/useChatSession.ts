@@ -142,6 +142,20 @@ export function useChatSession(workspaceId: string) {
     setMessages([])
   }, [])
 
+  const loadSession = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`)
+      if (!res.ok) return
+      const session = await res.json()
+      if (session.messages) {
+        setSessionId(id)
+        setMessages(session.messages)
+      }
+    } catch (err) {
+      console.error("Failed to load session:", err)
+    }
+  }, [])
+
   const send = async (params: {
     workspaceId: string
     agent: "claude-code" | "codex"
@@ -312,6 +326,7 @@ export function useChatSession(workspaceId: string) {
     deleteSkill,
     loadSkills,
     newSession,
+    loadSession,
     sessionId,
   }
 }

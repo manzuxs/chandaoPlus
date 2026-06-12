@@ -181,8 +181,9 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
 
   return (
     <div className="chat-thread" ref={containerRef}>
-      {sessions && sessions.length > 1 && (
+      {sessions && sessions.length >= 1 && (
         <div className="session-selector">
+          <label className="session-selector-label">历史会话</label>
           <select
             value={activeSessionId ?? ""}
             onChange={(e) => onSwitchSession?.(e.target.value)}
@@ -190,7 +191,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
           >
             {sessions.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title || s.id.slice(0, 8)} ({s.messageCount} 条消息)
+                {s.title || s.id.slice(0, 8)} · {s.messageCount} 条消息 · {new Date(s.updatedAt).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
               </option>
             ))}
           </select>
