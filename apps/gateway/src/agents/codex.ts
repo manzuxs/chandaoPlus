@@ -34,16 +34,15 @@ function streamProcess(
 export const codexAdapter: AgentAdapter = {
   id: "codex",
   async run({ workspace, bundleDir, request, skill, onChunk }: AgentRunOptions) {
-    const lastMessage = request.messages.at(-1)?.content ?? ""
-    const prompt = buildPrompt(
-      request.command,
-      workspace.rootPath,
+    const prompt = buildPrompt({
+      command: request.command,
+      workspaceRoot: workspace.rootPath,
       bundleDir,
-      lastMessage,
-      request.page.title,
-      request.page.url,
-      skill
-    )
+      messages: request.messages,
+      pageTitle: request.page.title,
+      pageUrl: request.page.url,
+      skill,
+    })
     const bin = process.env.CODEX_BIN || CODEX_BIN
     const rawArgs = process.env.CODEX_ARGS || CODEX_ARGS
     const args = rawArgs.split(/\s+/).filter(Boolean)

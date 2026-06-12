@@ -2,6 +2,7 @@ import express from "express"
 import { registerChatRoutes } from "./routes/chat"
 import { registerWorkspaceRoutes } from "./routes/workspaces"
 import { registerSkillRoutes } from "./routes/skills"
+import { registerSessionRoutes } from "./routes/sessions"
 
 export function createServer(deps: any) {
   const app = express()
@@ -18,6 +19,7 @@ export function createServer(deps: any) {
   })
   registerWorkspaceRoutes(app, deps)
   registerSkillRoutes(app, deps)
+  registerSessionRoutes(app, deps)
   registerChatRoutes(app, deps)
   return app
 }
