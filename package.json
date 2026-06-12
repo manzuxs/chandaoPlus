@@ -1,0 +1,17 @@
+{
+  "name": "chandaoplus",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev:gateway": "pnpm --filter @chandaoplus/gateway dev",
+    "dev:extension": "pnpm --filter @chandaoplus/extension dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.3",
+    "vitest": "^2.0.5"
+  }
+}

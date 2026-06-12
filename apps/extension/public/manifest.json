@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "chandaoPlus",
+  "version": "0.1.0",
+  "permissions": ["storage", "activeTab", "scripting", "tabs", "sidePanel"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1:3210/*", "http://localhost:3210/*"],
+  "background": {
+    "service_worker": "src/background/index.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Open Chat Panel"
+  }
+}

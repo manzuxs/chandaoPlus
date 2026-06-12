@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+.DS_Store
+*.log
+.chandaoplus-cache/
+.agents/
+.claude/
+.codex/
+.supermech/
+# Compiled output in source dirs (tsc in-place artifacts)
+src/**/*.js
+src/**/*.js.map
