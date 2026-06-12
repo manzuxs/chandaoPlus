@@ -56,7 +56,7 @@ export function App() {
   }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill } = useChatSession()
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, sessionId } = useChatSession(workspaceId)
 
   // Load last used workspace id
   useEffect(() => {
@@ -167,6 +167,20 @@ export function App() {
           >
             {pagePreviewCopied ? <CheckIcon /> : <CopyIcon />}
           </button>
+          {sessionId && (
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={newSession}
+              title="新建会话"
+              aria-label="新建会话"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             className="btn-icon"

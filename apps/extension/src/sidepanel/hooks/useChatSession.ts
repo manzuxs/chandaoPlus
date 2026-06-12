@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from "react"
 import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
 
-export function useChatSession() {
+export function useChatSession(workspaceId: string) {
   const [workspaces, setWorkspaces] = useState<WorkspaceProfile[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sending, setSending] = useState(false)
   const [statusText, setStatusText] = useState("")
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -37,6 +38,35 @@ export function useChatSession() {
     loadWorkspaces()
     loadSkills()
   }, [loadWorkspaces, loadSkills])
+
+  // Restore session and load history when workspaceId changes
+  useEffect(() => {
+    if (!workspaceId) return
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(`session_${workspaceId}`).then((result: Record<string, any>) => {
+        const stored = result[`session_${workspaceId}`]
+        if (stored) {
+          setSessionId(stored)
+          fetch(`http://127.0.0.1:3210/api/sessions/${stored}`)
+            .then((r) => r.json())
+            .then((session) => {
+              if (session.messages) setMessages(session.messages)
+            })
+            .catch(() => {})
+        } else {
+          setSessionId(null)
+          setMessages([])
+        }
+      })
+    }
+  }, [workspaceId])
+
+  // Persist sessionId to chrome.storage when it changes
+  useEffect(() => {
+    if (sessionId && workspaceId && typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ [`session_${workspaceId}`]: sessionId })
+    }
+  }, [sessionId, workspaceId])
 
   useEffect(() => {
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
@@ -107,6 +137,11 @@ export function useChatSession() {
     }
   }
 
+  const newSession = useCallback(() => {
+    setSessionId(null)
+    setMessages([])
+  }, [])
+
   const send = async (params: {
     workspaceId: string
     agent: "claude-code" | "codex"
@@ -127,12 +162,15 @@ export function useChatSession() {
       const pageCapture = await captureActiveTabPage()
 
       setStatusText("正在连接网关...")
-      const payload = {
+      const payload: Record<string, unknown> = {
         workspaceId: params.workspaceId,
         agent: params.agent,
         command: params.command,
         page: pageCapture,
         messages: [userMsg]
+      }
+      if (sessionId) {
+        payload.sessionId = sessionId
       }
 
       const response = await fetch("http://127.0.0.1:3210/api/chat/stream", {
@@ -168,7 +206,9 @@ export function useChatSession() {
           if (trimmed.startsWith("data: ")) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
-              if (chunk.type === "status" || chunk.type === "progress") {
+              if (chunk.type === "meta" && chunk.sessionId) {
+                setSessionId(chunk.sessionId)
+              } else if (chunk.type === "status" || chunk.type === "progress") {
                 setStatusText(chunk.content)
               } else if (chunk.type === "text") {
                 assistantMsg.content += chunk.content
@@ -270,6 +310,8 @@ export function useChatSession() {
     loadWorkspaces,
     saveSkill,
     deleteSkill,
-    loadSkills
+    loadSkills,
+    newSession,
+    sessionId,
   }
 }
