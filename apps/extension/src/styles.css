@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
   /* Figma Design System — Monochrome Core */
   --ink: #000000;
@@ -19,11 +21,19 @@
   --accent-magenta: #ff3d8b;
   --semantic-success: #1ea64a;
 
-  /* Typography weights */
-  --weight-body: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-  --weight-bold: 700;
+  /* Typography */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /* Typography weights matching Figma variable weights */
+  --weight-display: 300;      /* figmaSans 340 approx */
+  --weight-headline: 500;     /* figmaSans 540 approx */
+  --weight-body-lg: 300;      /* figmaSans 330 approx */
+  --weight-body: 300;         /* figmaSans 320 approx */
+  --weight-body-medium: 400;  /* figmaSans 330/340 bold/medium */
+  --weight-link: 500;         /* figmaSans 480 approx */
+  --weight-button: 500;       /* figmaSans 480 approx */
+  --weight-bold: 700;         /* figmaSans 700 */
 
   /* Border radius */
   --radius-xs: 2px;
@@ -43,6 +53,10 @@
   --space-lg: 24px;
   --space-xl: 32px;
   --space-xxl: 48px;
+
+  /* Elevation & Depth */
+  --shadow-level-2: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-level-3: 0 12px 32px rgba(0, 0, 0, 0.12);
 
   /* Transitions */
   --transition-fast: 0.15s ease;
@@ -94,10 +108,10 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: var(--weight-body);
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--ink);
   background-color: var(--canvas);
   -webkit-font-smoothing: antialiased;
@@ -148,10 +162,10 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xxs);
-  padding: var(--space-xs) var(--space-md);
+  padding: 10px 20px;
   border-radius: var(--radius-pill);
-  font-size: 13px;
-  font-weight: var(--weight-medium);
+  font-size: 14px;
+  font-weight: var(--weight-button);
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -170,13 +184,12 @@ button {
 }
 
 .btn-pill-secondary {
-  background-color: var(--canvas);
+  background-color: var(--surface-soft);
   color: var(--ink);
-  border: var(--space-hair) solid var(--hairline);
 }
 
 .btn-pill-secondary:hover {
-  background-color: var(--surface-soft);
+  background-color: var(--hairline);
 }
 
 .btn-pill-magenta {
@@ -190,21 +203,19 @@ button {
 
 /* === Icon Buttons — Circular === */
 .btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background-color: var(--surface-soft);
   color: var(--ink);
-  border: var(--space-hair) solid var(--hairline);
   transition: all var(--transition-base);
 }
 
 .btn-icon:hover {
-  background-color: var(--hairline-soft);
-  border-color: var(--ink);
+  background-color: var(--hairline);
 }
 
 .btn-icon:active {
@@ -212,15 +223,14 @@ button {
 }
 
 .btn-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   stroke-width: 2;
 }
 
 .btn-icon.copied {
   background-color: var(--semantic-success);
   color: var(--canvas);
-  border-color: var(--semantic-success);
 }
 
 /* === Button Label Ellipsis === */
@@ -829,6 +839,7 @@ button {
   border-radius: var(--radius-lg);
   min-width: 180px;
   z-index: var(--z-dropdown);
+  box-shadow: var(--shadow-level-2);
   animation: dropdown-enter var(--transition-base);
 }
 
@@ -933,6 +944,7 @@ button {
   border: var(--space-hair) solid var(--hairline);
   border-radius: var(--radius-lg);
   z-index: var(--z-dropdown);
+  box-shadow: var(--shadow-level-2);
   overflow: hidden;
   animation: dropdown-enter var(--transition-base);
 }
@@ -1004,6 +1016,7 @@ button {
   border: var(--space-hair) solid var(--hairline);
   border-radius: var(--radius-lg);
   z-index: calc(var(--z-overlay) + 1);
+  box-shadow: var(--shadow-level-3);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1196,4 +1209,127 @@ button {
 .btn-add-skill:hover {
   border-style: solid;
   background-color: var(--surface-soft);
+}
+
+/* === Figma Sticky Note 拼贴样式 === */
+.sticky-notes-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  justify-content: center;
+  width: 100%;
+}
+
+.sticky-note {
+  width: 120px;
+  height: 120px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm); /* Sticky notes keep a small rounded.sm corner */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), background-color var(--transition-base);
+  border: var(--space-hair) solid rgba(0, 0, 0, 0.04);
+  text-align: left;
+}
+
+.sticky-note:hover {
+  transform: scale(1.06) rotate(0deg) !important; /* hover 时变大变正 */
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* 轮流的彩色背景 */
+.sticky-note-lime {
+  background-color: var(--block-lime);
+  color: #000000;
+}
+
+.sticky-note-lilac {
+  background-color: var(--block-lilac);
+  color: #000000;
+}
+
+.sticky-note-cream {
+  background-color: var(--block-cream);
+  color: #000000;
+}
+
+.sticky-note-pink {
+  background-color: var(--block-pink);
+  color: #000000;
+}
+
+.sticky-note-mint {
+  background-color: var(--block-mint);
+  color: #000000;
+}
+
+.sticky-note-coral {
+  background-color: var(--block-coral);
+  color: #000000;
+}
+
+.sticky-note-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.sticky-note-bottom {
+  display: flex;
+  flex-direction: column;
+}
+
+.sticky-note-name {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-bold);
+  font-size: 13px;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.sticky-note-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+/* === 辅助列表与小按钮样式 === */
+.empty-list-text {
+  text-align: center;
+  padding: var(--space-lg);
+  font-weight: var(--weight-body);
+  font-size: 13px;
+  opacity: 0.5;
+}
+
+.skill-list-item-actions {
+  display: flex;
+  gap: var(--space-xxs);
+  align-items: center;
+}
+
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-soft);
+  color: var(--ink);
+  transition: all var(--transition-base);
+}
+
+.btn-icon-sm:hover {
+  background-color: var(--hairline);
+}
+
+.btn-icon-sm svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.2;
 }

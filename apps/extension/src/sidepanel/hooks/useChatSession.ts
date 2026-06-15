@@ -9,6 +9,7 @@ export function useChatSession(workspaceId: string) {
   const [sending, setSending] = useState(false)
   const [statusText, setStatusText] = useState("")
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionVersion, setSessionVersion] = useState(0)
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -272,6 +273,7 @@ export function useChatSession(workspaceId: string) {
       }
     } finally {
       setSending(false)
+      setSessionVersion((v) => v + 1)
     }
   }
 
@@ -328,5 +330,6 @@ export function useChatSession(workspaceId: string) {
     newSession,
     loadSession,
     sessionId,
+    sessionVersion,
   }
 }

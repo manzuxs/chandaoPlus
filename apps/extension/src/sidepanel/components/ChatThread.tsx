@@ -244,6 +244,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
                     </div>
                     <div className="session-item-meta">
                       {s.messageCount} 条消息
+                      {s.lastMessage && <span className="session-item-preview">{s.lastMessage}</span>}
                       {isActive && <span className="session-item-current">当前</span>}
                     </div>
                   </button>
@@ -263,23 +264,34 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
             </p>
           </div>
 
-          <div className="skills-grid">
-            {skills.map((skill) => (
-              <div
-                key={skill.id}
-                className="skill-chip"
-                onClick={() => onSelectSkill?.(skill)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    onSelectSkill?.(skill)
-                  }
-                }}
-              >
-                {skill.icon} {skill.name}
-              </div>
-            ))}
+          <div className="sticky-notes-container">
+            {skills.map((skill, index) => {
+              const stickyColors = ["lime", "lilac", "cream", "pink", "mint", "coral"];
+              const stickyRotations = ["-2.5deg", "1.5deg", "-1.2deg", "2deg", "-2deg", "1deg"];
+              const color = stickyColors[index % stickyColors.length];
+              const rotation = stickyRotations[index % stickyRotations.length];
+              return (
+                <div
+                  key={skill.id}
+                  className={`sticky-note sticky-note-${color}`}
+                  style={{ transform: `rotate(${rotation})` }}
+                  onClick={() => onSelectSkill?.(skill)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      onSelectSkill?.(skill)
+                    }
+                  }}
+                >
+                  <div className="sticky-note-icon">{skill.icon}</div>
+                  <div className="sticky-note-bottom">
+                    <span className="sticky-note-name">{skill.name}</span>
+                    <span className="sticky-note-id">/{skill.id}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (

@@ -106,7 +106,7 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
                 </div>
                 <button
                   type="button"
-                  className="btn-icon"
+                  className="btn-icon-sm"
                   onClick={() => handleDelete(skill.id)}
                   aria-label="删除"
                   title="删除"
@@ -116,7 +116,7 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
               </div>
             ))}
             {customSkills.length === 0 && (
-              <div style={{ textAlign: "center", padding: "24px", opacity: 0.5, fontSize: "13px" }}>
+              <div className="empty-list-text">
                 暂无自定义技能
               </div>
             )}

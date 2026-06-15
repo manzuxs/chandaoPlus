@@ -15,7 +15,9 @@ describe("POST /api/chat/stream", () => {
       sessionStore: {
         get: async () => undefined,
         create: async () => ({ id: "test-session-id" }),
-        appendMessage: async (sid: string, msg: any) => { messages.push(msg) }
+        appendMessage: async (sid: string, msg: any) => { messages.push(msg) },
+        updateTitle: async () => {},
+        addContextBundleDir: async () => {}
       },
       agentRegistry: {
         get: () => ({
@@ -58,7 +60,8 @@ describe("POST /api/chat/stream", () => {
       sessionStore: {
         get: async (sid: string) => sid === "550e8400-e29b-41d4-a716-446655440000" ? existingSession : undefined,
         create: async () => ({ id: "new-session-id" }),
-        appendMessage: async (sid: string, msg: any) => { messages.push({ sid, msg }) }
+        appendMessage: async (sid: string, msg: any) => { messages.push({ sid, msg }) },
+        addContextBundleDir: async () => {}
       },
       agentRegistry: {
         get: () => ({
@@ -98,7 +101,9 @@ describe("POST /api/chat/stream", () => {
       sessionStore: {
         get: async () => undefined,
         create: async () => ({ id: "test-session-id" }),
-        appendMessage: async () => {}
+        appendMessage: async () => {},
+        updateTitle: async () => {},
+        addContextBundleDir: async () => {}
       },
       agentRegistry: {
         get: () => ({

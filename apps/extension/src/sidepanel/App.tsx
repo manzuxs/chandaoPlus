@@ -57,7 +57,7 @@ export function App() {
   }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, loadSession, sessionId } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion } = useChatSession(workspaceId)
 
   // Load last used workspace id
   useEffect(() => {
@@ -79,7 +79,7 @@ export function App() {
         if (Array.isArray(data)) setSessions(data)
       })
       .catch(() => {})
-  }, [workspaceId, sessionId])
+  }, [workspaceId, sessionId, sessionVersion])
 
   const handleSwitchSession = (newSessionId: string) => {
     loadSession(newSessionId)

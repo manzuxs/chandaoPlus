@@ -26,6 +26,11 @@ export function registerChatRoutes(app: any, deps: any) {
       } else {
         const session = await deps.sessionStore.create(request.workspaceId)
         sessionId = session.id
+        const firstUserMsg = request.messages.find((m: { role: string }) => m.role === "user")
+        if (firstUserMsg) {
+          const title = firstUserMsg.content.replace(/\n/g, " ").slice(0, 50)
+          await deps.sessionStore.updateTitle(sessionId, title)
+        }
       }
 
       // 持久化用户消息
@@ -35,6 +40,7 @@ export function registerChatRoutes(app: any, deps: any) {
 
       const contextSessionId = crypto.randomUUID()
       const bundleDir = await writeContextBundle(workspace.rootPath, contextSessionId, request.page)
+      await deps.sessionStore.addContextBundleDir(sessionId, bundleDir)
 
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
       res.setHeader("Cache-Control", "no-cache")
@@ -59,7 +65,7 @@ export function registerChatRoutes(app: any, deps: any) {
           deps.sessionStore.appendMessage(sessionId!, {
             role: "assistant",
             content: assistantContent + "\n\n[连接中断]",
-          }).catch(() => {})
+          }).catch((err: any) => { console.error("Failed to persist interrupted message:", err) })
         }
       })
 

@@ -60,6 +60,7 @@ export const SessionListItemSchema = z.object({
   workspaceId: z.string(),
   title: z.string().optional(),
   messageCount: z.number(),
+  lastMessage: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

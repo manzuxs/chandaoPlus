@@ -117,7 +117,7 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
                   <div className="skill-list-section">
                     <h4>已有工作空间</h4>
                     {workspaces.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "24px", opacity: 0.5, fontSize: "13px" }}>
+                      <div className="empty-list-text">
                         暂无工作空间
                       </div>
                     ) : (
@@ -133,30 +133,28 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
                               <div className="skill-list-item-id">{ws.id}</div>
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                          <div className="skill-list-item-actions">
                             {ws.id === value && (
                               <span className="skill-list-item-badge">当前</span>
                             )}
                             <button
                               type="button"
-                              className="btn-icon"
+                              className="btn-icon-sm"
                               onClick={() => handleEdit(ws)}
                               aria-label="编辑"
                               title="编辑"
-                              style={{ width: "28px", height: "28px" }}
                             >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ width: "13px", height: "13px" }}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
                             <button
                               type="button"
-                              className="btn-icon"
+                              className="btn-icon-sm"
                               onClick={() => handleDelete(ws.id)}
                               aria-label="删除"
                               title="删除"
-                              style={{ width: "28px", height: "28px" }}
                             >
                               <TrashIcon />
                             </button>
