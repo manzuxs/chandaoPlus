@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const AgentKindSchema = z.enum(["claude-code", "codex"])
+export const AgentKindSchema = z.enum(["claude-code", "codex", "opencode"])
 export const ChatCommandSchema = z.string().min(1)
 
 export const SkillSchema = z.object({

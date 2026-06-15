@@ -123,7 +123,7 @@ export function App() {
     setConfirmOpen(true)
   }
   const [command, setCommand] = useState<ChatCommand>("default")
-  const [agent, setAgent] = useState<"claude-code" | "codex">("claude-code")
+  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
@@ -140,7 +140,7 @@ export function App() {
   const currentSession = sessions.find((s) => s.id === sessionId)
   const currentTitle = currentSession?.title || (sessionId ? "未命名会话" : "新对话")
 
-  const selectAgent = (a: "claude-code" | "codex") => {
+  const selectAgent = (a: "claude-code" | "codex" | "opencode") => {
     setAgent(a)
     setAgentMenuOpen(false)
     setPermissionMenuOpen(false)
@@ -420,7 +420,7 @@ export function App() {
                     }
                   }}
                 >
-                  <span>{agent === "claude-code" ? "Claude Code" : "Codex"}</span>
+                  <span>{agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : "OpenCode"}</span>
                   <ChevronDownIcon />
                 </div>
                 {agentMenuOpen && (
@@ -451,6 +451,20 @@ export function App() {
                         <div className="agent-menu-item-desc">快速代码生成</div>
                       </div>
                       {agent === "codex" && (
+                        <span className="agent-check"><CheckIcon /></span>
+                      )}
+                    </div>
+                    <div
+                      className="agent-menu-item"
+                      onClick={() => selectAgent("opencode")}
+                      role="option"
+                      aria-selected={agent === "opencode"}
+                    >
+                      <div>
+                        <div className="agent-menu-item-name">OpenCode</div>
+                        <div className="agent-menu-item-desc">开源高效编程助手</div>
+                      </div>
+                      {agent === "opencode" && (
                         <span className="agent-check"><CheckIcon /></span>
                       )}
                     </div>

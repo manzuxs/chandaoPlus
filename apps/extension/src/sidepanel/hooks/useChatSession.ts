@@ -254,7 +254,7 @@ export function useChatSession(workspaceId: string) {
 
   const send = async (params: {
     workspaceId: string
-    agent: "claude-code" | "codex"
+    agent: "claude-code" | "codex" | "opencode"
     command: ChatCommand
     input: string
   }) => {

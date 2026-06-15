@@ -2,7 +2,7 @@ import { Router } from "express"
 import crypto from "node:crypto"
 import { ChatRequestSchema } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
-import { CODEX_BIN } from "../config"
+import { CODEX_BIN, OPENCODE_BIN } from "../config"
 
 export function registerChatRoutes(app: any, deps: any) {
   const router = Router()
@@ -154,6 +154,36 @@ export function registerChatRoutes(app: any, deps: any) {
             { id: "gpt-4o-mini", name: "GPT-4o Mini", hasReasoning: false },
             { id: "o1", name: "o1", hasReasoning: true },
             { id: "o3-mini", name: "o3-mini", hasReasoning: true }
+          ])
+          return
+        }
+      }
+
+      if (agent === "opencode") {
+        const { exec } = await import("node:child_process")
+        const { promisify } = await import("node:util")
+        const execAsync = promisify(exec)
+        
+        try {
+          const bin = process.env.OPENCODE_BIN || OPENCODE_BIN || "opencode"
+          const { stdout } = await execAsync(`${bin} models`, { maxBuffer: 10 * 1024 * 1024 })
+          const lines = stdout.split("\n").map(l => l.trim()).filter(Boolean)
+          const mapped = lines.map((line) => {
+            const isReasoning = line.includes("reasoner") || line.includes("pro") || line.includes("max")
+            return {
+              id: line,
+              name: line,
+              hasReasoning: isReasoning
+            }
+          })
+          res.json(mapped)
+          return
+        } catch (err) {
+          console.error("Failed to run opencode models:", err)
+          res.json([
+            { id: "default", name: "默认模型 (Auto)", hasReasoning: true },
+            { id: "opencode-go/deepseek-v4-pro", name: "deepseek-v4-pro", hasReasoning: true },
+            { id: "opencode-go/qwen3.7-max", name: "qwen3.7-max", hasReasoning: true }
           ])
           return
         }
