@@ -154,4 +154,126 @@ describe("App", () => {
     expect(copiedText).toContain("# BUG #1")
     expect(copiedText).not.toContain("ZmFrZQ==")
   })
+
+  it("deletes a session and updates the UI list", async () => {
+    let sessionList = [
+      {
+        id: "session-1",
+        workspaceId: "ws-1",
+        title: "会话一",
+        messageCount: 2,
+        lastMessage: "你好",
+        createdAt: "2026-06-15T03:00:00Z",
+        updatedAt: "2026-06-15T03:00:00Z"
+      }
+    ]
+
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }])
+        })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: "estimate",
+              name: "评估工期与修复方案",
+              icon: "⏱️",
+              description: "评估评估",
+              keywords: [],
+              promptTemplate: "请评估",
+              outputFormat: "markdown",
+              builtin: true
+            }
+          ])
+        })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(sessionList)
+        })
+      }
+      if (url.includes("/api/sessions/session-1")) {
+        if (options?.method === "DELETE") {
+          sessionList = []
+          return Promise.resolve({
+            ok: true,
+            status: 204
+          })
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: "session-1",
+            workspaceId: "ws-1",
+            messages: [{ role: "user", content: "你好" }]
+          })
+        })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+    
+    vi.stubGlobal("fetch", customFetchMock)
+
+    const storageGetMock = vi.fn().mockImplementation((keys: any, callback?: any) => {
+      const result: Record<string, any> = {}
+      if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) {
+        result.lastWorkspaceId = "ws-1"
+      }
+      if (typeof callback === "function") {
+        callback(result)
+      }
+      return Promise.resolve(result)
+    })
+    
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: storageGetMock,
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+    
+    // 1. 等待工作空间一加载完毕并渲染出来
+    await screen.findByText("工作空间一")
+    
+    // 2. 打开历史抽屉
+    const historyBtn = screen.getByRole("button", { name: "历史会话" })
+    fireEvent.click(historyBtn)
+    
+    // 3. 等待会话一在抽屉中渲染
+    await screen.findByText("会话一")
+    
+    // 4. 点击删除按钮（触发自定义二次确认弹窗）
+    const deleteBtn = screen.getByRole("button", { name: "删除会话" })
+    fireEvent.click(deleteBtn)
+    
+    // 5. 找到自定义弹窗中的“确认删除”按钮并点击
+    const confirmBtn = await screen.findByRole("button", { name: "确认删除" })
+    fireEvent.click(confirmBtn)
+    
+    // 6. 验证调用了 DELETE API
+    expect(customFetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3210/api/sessions/session-1",
+      expect.objectContaining({ method: "DELETE" })
+    )
+    
+    // 7. 会话一成功被从界面移除
+    await waitFor(() => {
+      expect(screen.queryByText("会话一")).toBeNull()
+    })
+  })
 })

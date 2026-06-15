@@ -53,6 +53,15 @@ const XIcon = () => (
   </svg>
 )
 
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+)
+
 function formatSessionTime(iso: string): string {
   return new Date(iso).toLocaleString("zh-CN", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
@@ -61,6 +70,17 @@ function formatSessionTime(iso: string): string {
 
 export function App() {
   const [workspaceId, setWorkspaceId] = useState<string>("")
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmData, setConfirmData] = useState<{
+    title: string
+    message: string
+    onConfirm: () => void
+  } | null>(null)
+
+  const requestConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmData({ title, message, onConfirm })
+    setConfirmOpen(true)
+  }
   const [command, setCommand] = useState<ChatCommand>("estimate")
   const [agent, setAgent] = useState<"claude-code" | "codex">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
@@ -78,7 +98,7 @@ export function App() {
   }
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion } = useChatSession(workspaceId)
 
   // Load last used workspace id
   useEffect(() => {
@@ -447,7 +467,23 @@ export function App() {
                         <span className="history-session-item-preview">
                           {s.messageCount} 条消息{s.lastMessage ? ` · ${s.lastMessage}` : ""}
                         </span>
-                        {isActive && <span className="history-session-item-current">当前</span>}
+                        <div className="history-session-item-meta-right" onClick={(e) => e.stopPropagation()}>
+                          {isActive && <span className="history-session-item-current">当前</span>}
+                          <button
+                            type="button"
+                            className="btn-delete-session"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              requestConfirm("删除会话", "确定要删除这个会话吗？删除后将无法恢复该会话下的所有内容。", () => {
+                                deleteSession(s.id);
+                              });
+                            }}
+                            title="删除会话"
+                            aria-label="删除会话"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -455,6 +491,38 @@ export function App() {
                 {sessions.length === 0 && (
                   <div className="empty-list-text">暂无历史会话</div>
                 )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {confirmOpen && confirmData && (
+        <>
+          <div className="confirm-overlay" onClick={() => setConfirmOpen(false)} />
+          <div className="confirm-card">
+            <div className="confirm-card-body">
+              <h4>{confirmData.title}</h4>
+              <p>{confirmData.message}</p>
+              <div className="confirm-actions">
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-secondary"
+                  onClick={() => setConfirmOpen(false)}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-primary"
+                  style={{ backgroundColor: "var(--accent-magenta)", color: "var(--canvas)" }}
+                  onClick={() => {
+                    confirmData.onConfirm()
+                    setConfirmOpen(false)
+                  }}
+                >
+                  确认删除
+                </button>
               </div>
             </div>
           </div>

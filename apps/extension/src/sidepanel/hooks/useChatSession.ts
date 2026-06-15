@@ -138,6 +138,30 @@ export function useChatSession(workspaceId: string) {
     }
   }
 
+  const deleteSession = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`, {
+        method: "DELETE"
+      })
+      if (res.ok) {
+        if (id === sessionId) {
+          setSessionId(null)
+          setMessages([])
+          if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
+            await chrome.storage.local.remove(`session_${workspaceId}`)
+          }
+        }
+        setSessionVersion((v) => v + 1)
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to delete session")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("删除会话失败")
+    }
+  }, [sessionId, workspaceId])
+
   const newSession = useCallback(() => {
     setSessionId(null)
     setMessages([])
@@ -323,6 +347,7 @@ export function useChatSession(workspaceId: string) {
     addWorkspace,
     updateWorkspace,
     deleteWorkspace,
+    deleteSession,
     loadWorkspaces,
     saveSkill,
     deleteSkill,

@@ -131,7 +131,7 @@ body {
   background-color: var(--canvas);
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-shrink: 0;
 }
 
@@ -536,6 +536,41 @@ button {
 .history-session-item-current {
   color: var(--semantic-success);
   font-weight: var(--weight-bold);
+}
+
+.history-session-item-meta-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.btn-delete-session {
+  opacity: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.history-session-item:hover .btn-delete-session {
+  opacity: 0.5;
+}
+
+.history-session-item:hover .btn-delete-session:hover {
+  opacity: 1;
+  color: var(--accent-magenta);
+  background-color: var(--hairline);
+}
+
+.btn-delete-session svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.2;
 }
 
 /* Message Block & Actions */
@@ -1334,4 +1369,60 @@ button {
   width: 13px;
   height: 13px;
   stroke-width: 2.2;
+}
+
+/* === 自定义确认弹窗样式 (Figma Design System) === */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-overlay) + 10);
+  animation: fade-in var(--transition-fast);
+}
+
+.confirm-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  background-color: var(--canvas);
+  border: var(--space-hair) solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-level-3);
+  z-index: calc(var(--z-overlay) + 11);
+  padding: var(--space-md) var(--space-lg);
+  animation: scale-in var(--transition-fast) forwards;
+}
+
+@keyframes scale-in {
+  from { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.confirm-card-body h4 {
+  font-size: 15px;
+  font-weight: var(--weight-bold);
+  margin-bottom: var(--space-xs);
+  color: var(--ink);
+}
+
+.confirm-card-body p {
+  font-size: 13px;
+  color: var(--ink);
+  opacity: 0.7;
+  margin-bottom: var(--space-md);
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.confirm-actions button {
+  padding: 8px 16px;
+  font-size: 13px;
 }
