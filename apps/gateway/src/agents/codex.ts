@@ -87,11 +87,22 @@ export const codexAdapter: AgentAdapter = {
 
     const bin = process.env.CODEX_BIN || CODEX_BIN
     
+    const options: string[] = []
+    
+    // 拼入前端指定的 effort 思考参数
+    if (request.effort) {
+      options.push("-c", `model_options.reasoning_effort=${request.effort}`)
+    }
+
+    if (request.permissionMode === "full") {
+      options.push("--dangerously-bypass-approvals-and-sandbox")
+    }
+
     let args: string[] = []
     if (codexThreadId) {
-      args = ["exec", "resume", codexThreadId, "--skip-git-repo-check", "--json", "-"]
+      args = ["exec", "resume", ...options, codexThreadId, "--skip-git-repo-check", "--json", "-"]
     } else {
-      args = ["exec", "--skip-git-repo-check", "--json", "-"]
+      args = ["exec", ...options, "--skip-git-repo-check", "--json", "-"]
     }
 
     await streamProcessCodex(

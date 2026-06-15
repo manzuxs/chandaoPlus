@@ -2,6 +2,7 @@ import { Router } from "express"
 import crypto from "node:crypto"
 import { ChatRequestSchema } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
+import { CODEX_BIN } from "../config"
 
 export function registerChatRoutes(app: any, deps: any) {
   const router = Router()
@@ -107,6 +108,48 @@ export function registerChatRoutes(app: any, deps: any) {
         res.write(`data: ${JSON.stringify({ type: "error", content: err.message })}\n\n`)
         res.end()
       }
+    }
+  })
+
+  router.get("/models", async (req, res) => {
+    try {
+      const agent = req.query.agent
+      if (agent === "codex") {
+        const { exec } = await import("node:child_process")
+        const { promisify } = await import("node:util")
+        const execAsync = promisify(exec)
+        
+        try {
+          const bin = process.env.CODEX_BIN || CODEX_BIN || "codex"
+          const { stdout } = await execAsync(`${bin} debug models`, { maxBuffer: 10 * 1024 * 1024 })
+          const rawData = JSON.parse(stdout)
+          const rawList = Array.isArray(rawData) ? rawData : (rawData.models || [])
+          const mapped = rawList.map((m: any) => ({
+            id: m.slug || m.id,
+            name: m.display_name || m.name || m.slug || m.id,
+            hasReasoning: !!(m.supported_reasoning_levels && m.supported_reasoning_levels.length > 0) || !!m.hasReasoning
+          }))
+          res.json(mapped)
+        } catch (err: any) {
+          console.error("Failed to run codex debug models:", err)
+          res.json([
+            { id: "default", name: "默认模型 (Auto)", hasReasoning: false },
+            { id: "gpt-4o", name: "GPT-4o", hasReasoning: false },
+            { id: "gpt-4o-mini", name: "GPT-4o Mini", hasReasoning: false },
+            { id: "o1", name: "o1", hasReasoning: true },
+            { id: "o3-mini", name: "o3-mini", hasReasoning: true }
+          ])
+        }
+        res.json([
+          { id: "default", name: "默认模型 (Sonnet)", hasReasoning: true },
+          { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", hasReasoning: true },
+          { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", hasReasoning: false },
+          { id: "claude-3-5-haiku", name: "Claude 3.5 Haiku", hasReasoning: false },
+          { id: "claude-3-opus", name: "Claude 3 Opus", hasReasoning: false }
+        ])
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message })
     }
   })
 

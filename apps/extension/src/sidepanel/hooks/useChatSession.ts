@@ -9,6 +9,9 @@ export function useChatSession(workspaceId: string) {
     messages: ChatMessage[]
     sending: boolean
     statusText: string
+    model?: string
+    effort?: "low" | "medium" | "high" | "xhigh" | "max"
+    permissionMode?: "ask" | "auto" | "full" | "custom"
   }>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
@@ -59,7 +62,10 @@ export function useChatSession(workspaceId: string) {
                   [stored]: {
                     messages: session.messages,
                     sending: prev[stored]?.sending || false,
-                    statusText: prev[stored]?.statusText || ""
+                    statusText: prev[stored]?.statusText || "",
+                    model: prev[stored]?.model || session.model || "default",
+                    effort: prev[stored]?.effort || session.effort || "medium",
+                    permissionMode: prev[stored]?.permissionMode || session.permissionMode || "full"
                   }
                 }))
               }
@@ -193,6 +199,24 @@ export function useChatSession(workspaceId: string) {
     })
   }, [])
 
+  const setSessionConfig = useCallback((config: {
+    model?: string
+    effort?: "low" | "medium" | "high" | "xhigh" | "max"
+    permissionMode?: "ask" | "auto" | "full" | "custom"
+  }) => {
+    const key = sessionId || "temp"
+    setSessionStates((prev) => {
+      const state = prev[key] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
+      return {
+        ...prev,
+        [key]: {
+          ...state,
+          ...config
+        }
+      }
+    })
+  }, [sessionId])
+
   const loadSession = useCallback(async (id: string) => {
     try {
       const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`)
@@ -205,7 +229,10 @@ export function useChatSession(workspaceId: string) {
           [id]: {
             messages: session.messages,
             sending: prev[id]?.sending || false,
-            statusText: prev[id]?.statusText || ""
+            statusText: prev[id]?.statusText || "",
+            model: prev[id]?.model || session.model || "default",
+            effort: prev[id]?.effort || session.effort || "medium",
+            permissionMode: prev[id]?.permissionMode || session.permissionMode || "full"
           }
         }))
       }
@@ -258,12 +285,19 @@ export function useChatSession(workspaceId: string) {
         }
       })
 
+      const activeState = activeId
+        ? (sessionStates[activeId] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
+        : (sessionStates["temp"] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
+
       const payload: Record<string, unknown> = {
         workspaceId: params.workspaceId,
         agent: params.agent,
         command: params.command,
         page: pageCapture,
-        messages: [userMsg]
+        messages: [userMsg],
+        model: activeState.model || "default",
+        effort: activeState.effort || "medium",
+        permissionMode: activeState.permissionMode || "full"
       }
       if (activeId) {
         payload.sessionId = activeId
@@ -455,12 +489,15 @@ export function useChatSession(workspaceId: string) {
 
   // Derive active session state
   const activeState = sessionId
-    ? (sessionStates[sessionId] || { messages: [], sending: false, statusText: "" })
-    : (sessionStates["temp"] || { messages: [], sending: false, statusText: "" })
+    ? (sessionStates[sessionId] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
+    : (sessionStates["temp"] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
 
   const messages = activeState.messages
   const sending = activeState.sending
   const statusText = activeState.statusText
+  const model = activeState.model || "default"
+  const effort = activeState.effort || "medium"
+  const permissionMode = activeState.permissionMode || "full"
 
   return {
     workspaces,
@@ -468,6 +505,10 @@ export function useChatSession(workspaceId: string) {
     messages,
     sending,
     statusText,
+    model,
+    effort,
+    permissionMode,
+    setSessionConfig,
     send,
     addWorkspace,
     updateWorkspace,

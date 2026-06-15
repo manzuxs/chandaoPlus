@@ -62,6 +62,33 @@ const TrashIcon = () => (
   </svg>
 )
 
+const ShieldIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const HandIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M18 11V6a2 2 0 00-2-2v0a2 2 0 00-2 2v5m-4 0V4a2 2 0 00-2-2v0a2 2 0 00-2 2v7M6 15v-2a2 2 0 00-2-2v0a2 2 0 00-2 2v6c0 4.4 3.6 8 8 8h3c3.9 0 7-3.1 7-7v-3a2 2 0 00-2-2v0a2 2 0 00-2 2v3" />
+  </svg>
+)
+
+const AlertCircleIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+)
+
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+  </svg>
+)
+
 function formatSessionTime(iso: string): string {
   return new Date(iso).toLocaleString("zh-CN", {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
@@ -84,6 +111,8 @@ export function App() {
   const [command, setCommand] = useState<ChatCommand>("estimate")
   const [agent, setAgent] = useState<"claude-code" | "codex">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [input, setInput] = useState("")
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
@@ -91,14 +120,15 @@ export function App() {
   const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
 
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
     setAgentMenuOpen(false)
+    setPermissionMenuOpen(false)
+    setModelMenuOpen(false)
   }
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion } = useChatSession(workspaceId)
 
   // Load last used workspace id
   useEffect(() => {
@@ -199,7 +229,6 @@ export function App() {
       const sessionId = parts[parts.length - 1] || ""
       return `上下文就绪 (${sessionId.substring(0, 8)}) · 点击复制`
     }
-    return text
   }
 
   return (
@@ -255,7 +284,11 @@ export function App() {
         />
       )}
 
-      <div className="app-body">
+      <div className="app-body" onClick={() => {
+        setPermissionMenuOpen(false)
+        setModelMenuOpen(false)
+        setAgentMenuOpen(false)
+      }}>
         <ChatThread
           messages={messages}
           skills={skills}
@@ -319,6 +352,11 @@ export function App() {
           <textarea
             ref={textareaRef}
             value={input}
+            onClick={() => {
+              setPermissionMenuOpen(false)
+              setModelMenuOpen(false)
+              setAgentMenuOpen(false)
+            }}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -338,72 +376,241 @@ export function App() {
             disabled={sending}
           />
           <div className="input-toolbar">
-            <div className="agent-selector">
-              <div
-                className={`agent-selector-trigger ${agentMenuOpen ? "open" : ""}`}
-                onClick={() => setAgentMenuOpen(!agentMenuOpen)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+            <div className="input-toolbar-left">
+              {/* Agent 选择器 */}
+              <div className="agent-selector">
+                <div
+                  className={`agent-selector-trigger ${agentMenuOpen ? "open" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
                     setAgentMenuOpen(!agentMenuOpen)
-                  }
+                    setPermissionMenuOpen(false)
+                    setModelMenuOpen(false)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setAgentMenuOpen(!agentMenuOpen)
+                      setPermissionMenuOpen(false)
+                      setModelMenuOpen(false)
+                    }
+                  }}
+                >
+                  <span>{agent === "claude-code" ? "Claude Code" : "Codex"}</span>
+                  <ChevronDownIcon />
+                </div>
+                {agentMenuOpen && (
+                  <div className="agent-menu">
+                    <div className="agent-menu-header">选择 Agent</div>
+                    <div
+                      className="agent-menu-item"
+                      onClick={() => selectAgent("claude-code")}
+                      role="option"
+                      aria-selected={agent === "claude-code"}
+                    >
+                      <div>
+                        <div className="agent-menu-item-name">Claude Code</div>
+                        <div className="agent-menu-item-desc">全方位编码助手</div>
+                      </div>
+                      {agent === "claude-code" && (
+                        <span className="agent-check"><CheckIcon /></span>
+                      )}
+                    </div>
+                    <div
+                      className="agent-menu-item"
+                      onClick={() => selectAgent("codex")}
+                      role="option"
+                      aria-selected={agent === "codex"}
+                    >
+                      <div>
+                        <div className="agent-menu-item-name">Codex</div>
+                        <div className="agent-menu-item-desc">快速代码生成</div>
+                      </div>
+                      {agent === "codex" && (
+                        <span className="agent-check"><CheckIcon /></span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 权限级别选择器 */}
+              <div className="permission-selector">
+                <div
+                  className={`permission-selector-trigger ${permissionMenuOpen ? "open" : ""} ${permissionMode === "full" ? "warning" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPermissionMenuOpen(!permissionMenuOpen)
+                    setAgentMenuOpen(false)
+                    setModelMenuOpen(false)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title="审批与权限策略"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setPermissionMenuOpen(!permissionMenuOpen)
+                      setAgentMenuOpen(false)
+                      setModelMenuOpen(false)
+                    }
+                  }}
+                >
+                  <span className="permission-icon">
+                    {permissionMode === "ask" && <HandIcon />}
+                    {permissionMode === "auto" && <ShieldIcon />}
+                    {permissionMode === "full" && <AlertCircleIcon />}
+                    {permissionMode === "custom" && <GearIcon />}
+                  </span>
+                  <span>
+                    {permissionMode === "ask" && "请求批准"}
+                    {permissionMode === "auto" && "替我审批"}
+                    {permissionMode === "full" && "完全访问"}
+                    {permissionMode === "custom" && "自定义"}
+                  </span>
+                  <ChevronDownIcon />
+                </div>
+                {permissionMenuOpen && (
+                  <div className="permission-menu">
+                    <div className="permission-menu-header">
+                      应如何批准 {agent === "claude-code" ? "Claude" : "Codex"} 操作？
+                    </div>
+                    <div
+                      className="permission-menu-item"
+                      onClick={() => {
+                        setSessionConfig({ permissionMode: "ask" })
+                        setPermissionMenuOpen(false)
+                      }}
+                    >
+                      <span className="item-icon"><HandIcon /></span>
+                      <div className="item-details">
+                        <div className="item-name">请求批准</div>
+                        <div className="item-desc">编辑外部文件和使用互联网时始终询问</div>
+                      </div>
+                      {permissionMode === "ask" && <span className="item-check"><CheckIcon /></span>}
+                    </div>
+                    <div
+                      className="permission-menu-item"
+                      onClick={() => {
+                        setSessionConfig({ permissionMode: "auto" })
+                        setPermissionMenuOpen(false)
+                      }}
+                    >
+                      <span className="item-icon"><ShieldIcon /></span>
+                      <div className="item-details">
+                        <div className="item-name">替我审批</div>
+                        <div className="item-desc">仅对检测到的风险操作请求批准</div>
+                      </div>
+                      {permissionMode === "auto" && <span className="item-check"><CheckIcon /></span>}
+                    </div>
+                    <div
+                      className={`permission-menu-item ${permissionMode === "full" ? "active" : ""}`}
+                      onClick={() => {
+                        setSessionConfig({ permissionMode: "full" })
+                        setPermissionMenuOpen(false)
+                      }}
+                    >
+                      <span className="item-icon warning"><AlertCircleIcon /></span>
+                      <div className="item-details">
+                        <div className="item-name">完全访问权限</div>
+                        <div className="item-desc">可不受限制地访问互联网和您电脑上的任何文件</div>
+                      </div>
+                      {permissionMode === "full" && <span className="item-check"><CheckIcon /></span>}
+                    </div>
+                    <div
+                      className="permission-menu-item"
+                      onClick={() => {
+                        setSessionConfig({ permissionMode: "custom" })
+                        setPermissionMenuOpen(false)
+                      }}
+                    >
+                      <span className="item-icon"><GearIcon /></span>
+                      <div className="item-details">
+                        <div className="item-name">自定义 (config.toml)</div>
+                        <div className="item-desc">使用配置文件中定义的权限</div>
+                      </div>
+                      {permissionMode === "custom" && <span className="item-check"><CheckIcon /></span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="input-toolbar-right">
+              {/* 思考强度选择器 */}
+              <div className="model-selector">
+                <div
+                  className={`model-selector-trigger ${modelMenuOpen ? "open" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setModelMenuOpen(!modelMenuOpen)
+                    setAgentMenuOpen(false)
+                    setPermissionMenuOpen(false)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title="思考强度"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setModelMenuOpen(!modelMenuOpen)
+                      setAgentMenuOpen(false)
+                      setPermissionMenuOpen(false)
+                    }
+                  }}
+                >
+                  <span>
+                    推理：
+                    {effort === "low" && "低"}
+                    {effort === "medium" && "中"}
+                    {effort === "high" && "高"}
+                    {(effort === "xhigh" || effort === "max") && "超高"}
+                  </span>
+                  <ChevronDownIcon />
+                </div>
+                {modelMenuOpen && (
+                  <div className="model-menu">
+                    <div className="model-menu-section reasoning-section">
+                      <div className="model-menu-header">推理</div>
+                      <div className={`model-option ${effort === "low" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "low" }); setModelMenuOpen(false); }}>
+                        <span>低</span>
+                        {effort === "low" && <span className="item-check"><CheckIcon /></span>}
+                      </div>
+                      <div className={`model-option ${effort === "medium" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "medium" }); setModelMenuOpen(false); }}>
+                        <span>中</span>
+                        {effort === "medium" && <span className="item-check"><CheckIcon /></span>}
+                      </div>
+                      <div className={`model-option ${effort === "high" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "high" }); setModelMenuOpen(false); }}>
+                        <span>高</span>
+                        {effort === "high" && <span className="item-check"><CheckIcon /></span>}
+                      </div>
+                      <div className={`model-option ${(effort === "xhigh" || effort === "max") ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "xhigh" }); setModelMenuOpen(false); }}>
+                        <span>超高</span>
+                        {(effort === "xhigh" || effort === "max") && <span className="item-check"><CheckIcon /></span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 发送按钮 */}
+              <button
+                type="button"
+                className="btn-send"
+                aria-label="发送"
+                disabled={!workspaceId || sending}
+                onClick={() => {
+                  send({
+                    workspaceId,
+                    agent,
+                    command,
+                    input
+                  })
+                  setInput("")
                 }}
               >
-                <span>{agent === "claude-code" ? "Claude Code" : "Codex"}</span>
-                <ChevronDownIcon />
-              </div>
-              {agentMenuOpen && (
-                <div className="agent-menu">
-                  <div className="agent-menu-header">选择 Agent</div>
-                  <div
-                    className="agent-menu-item"
-                    onClick={() => selectAgent("claude-code")}
-                    role="option"
-                    aria-selected={agent === "claude-code"}
-                  >
-                    <div>
-                      <div className="agent-menu-item-name">Claude Code</div>
-                      <div className="agent-menu-item-desc">全方位编码助手</div>
-                    </div>
-                    {agent === "claude-code" && (
-                      <span className="agent-check"><CheckIcon /></span>
-                    )}
-                  </div>
-                  <div
-                    className="agent-menu-item"
-                    onClick={() => selectAgent("codex")}
-                    role="option"
-                    aria-selected={agent === "codex"}
-                  >
-                    <div>
-                      <div className="agent-menu-item-name">Codex</div>
-                      <div className="agent-menu-item-desc">快速代码生成</div>
-                    </div>
-                    {agent === "codex" && (
-                      <span className="agent-check"><CheckIcon /></span>
-                    )}
-                  </div>
-                </div>
-              )}
+                <SendIcon />
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn-send"
-              aria-label="发送"
-              disabled={!workspaceId || sending}
-              onClick={() => {
-                send({
-                  workspaceId,
-                  agent,
-                  command,
-                  input
-                })
-                setInput("")
-              }}
-            >
-              <SendIcon />
-            </button>
           </div>
         </div>
       </footer>

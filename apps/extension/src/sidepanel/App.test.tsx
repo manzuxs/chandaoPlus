@@ -485,4 +485,30 @@ describe("App", () => {
     await screen.findByText("A-part1A-part2")
     expect(screen.queryByText("B-part1")).toBeNull()
   })
+
+  it("renders effort values dynamically through a single-level card", async () => {
+    render(<App />)
+    
+    // 等待初始化完成，默认会渲染成触发器文字 "推理：中"
+    await screen.findByText("推理：中")
+    
+    // 打开卡片菜单
+    const modelSelector = screen.getByTitle("思考强度")
+    fireEvent.click(modelSelector)
+    
+    // 卡片打开，里面应该渲染有推理的四个选项
+    expect(screen.getByText("推理")).toBeTruthy()
+    const reasoningSection = document.querySelector(".reasoning-section")
+    expect(reasoningSection).toBeTruthy()
+    expect(reasoningSection?.textContent).toContain("低")
+    expect(reasoningSection?.textContent).toContain("中")
+    expect(reasoningSection?.textContent).toContain("高")
+    expect(reasoningSection?.textContent).toContain("超高")
+    
+    // 点击 "超高" 选项以更改思考强度
+    fireEvent.click(screen.getByText("超高"))
+    
+    // 触发器应该更新为 "推理：超高"
+    await screen.findByText("推理：超高")
+  })
 })

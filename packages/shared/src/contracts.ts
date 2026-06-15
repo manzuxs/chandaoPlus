@@ -75,7 +75,10 @@ export const ChatRequestSchema = z.object({
   command: ChatCommandSchema,
   sessionId: z.string().uuid().optional(),
   page: PageCaptureSchema,
-  messages: z.array(ChatMessageSchema).min(1)
+  messages: z.array(ChatMessageSchema).min(1),
+  model: z.string().optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
 })
 
 export const ChatStreamChunkSchema = z.object({
