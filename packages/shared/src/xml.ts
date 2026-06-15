@@ -57,7 +57,13 @@ ${rawMarkdown}
       } else if (titleLower.includes("基本信息")) {
         sectionXmls.push(`  <basic_info>\n${blockText}\n  </basic_info>`)
       } else if (titleLower.includes("历史记录") || titleLower.includes("历史")) {
-        sectionXmls.push(`  <history_records>\n${blockText}\n  </history_records>`)
+        let cleanText = blockText.trim()
+        if (cleanText.startsWith("- ")) {
+          cleanText = cleanText.substring(2)
+        }
+        const items = cleanText.split(/\n-\s+/g).map(item => item.trim()).filter(Boolean)
+        const recordXmls = items.map(item => `    <record>${item}</record>`).join("\n")
+        sectionXmls.push(`  <history_records>\n${recordXmls}\n  </history_records>`)
       } else {
         sectionXmls.push(`  <section name="${escapeXml(current.title)}">\n${blockText}\n  </section>`)
       }

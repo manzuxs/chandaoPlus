@@ -63,7 +63,7 @@ describe("xml utils", () => {
       expect(xml).toContain("<intro># BUG #1 页面打不开\n\n一些前言介绍内容。</intro>")
       expect(xml).toContain("<steps_to_reproduce>\n1. 打开首页\n2. 点击登录\n  </steps_to_reproduce>")
       expect(xml).toContain("<basic_info>\n指派给: 张三\n  </basic_info>")
-      expect(xml).toContain("<history_records>\n- 评论: 已经修复了\n  </history_records>")
+      expect(xml).toContain("<history_records>\n    <record>评论: 已经修复了</record>\n  </history_records>")
       expect(xml).toContain('<section name="其它章节">\n一些其它信息\n  </section>')
     })
 

@@ -118,15 +118,23 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
 
   const extractHistoryLines = (
     targetDocument: Document,
-    payload: { actions?: Array<{ content?: string; comment?: string; historyChanges?: string }> }
-  ) => (payload.actions || [])
-    .map((action) => {
-      const content = decodeHtmlText(targetDocument, action.content || "")
-      const comment = decodeHtmlText(targetDocument, action.comment || "")
-      const historyChanges = decodeHtmlText(targetDocument, action.historyChanges || "")
-      return [content, comment || historyChanges].filter(Boolean).join("\n")
+    payload: { actions?: Array<{ id?: string; content?: string; comment?: string; historyChanges?: string }> }
+  ) => {
+    const sortedActions = (payload.actions || []).slice().sort((a, b) => {
+      const idA = parseInt(a.id || "0", 10)
+      const idB = parseInt(b.id || "0", 10)
+      return idA - idB
     })
-    .filter(Boolean)
+
+    return sortedActions
+      .map((action) => {
+        const content = decodeHtmlText(targetDocument, action.content || "")
+        const comment = decodeHtmlText(targetDocument, action.comment || "")
+        const historyChanges = decodeHtmlText(targetDocument, action.historyChanges || "")
+        return [content, comment || historyChanges].filter(Boolean).join("\n")
+      })
+      .filter(Boolean)
+  }
 
   const uniqueHistoryLines = (lines: string[]) => {
     const seen = new Set<string>()

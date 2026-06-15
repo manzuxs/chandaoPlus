@@ -86,13 +86,20 @@ function buildHistorySection(document: Document, root: ParentNode): HTMLElement 
   try {
     const payload = JSON.parse(historyAttribute.replace(/\r?\n/g, "\\n")) as {
       actions?: Array<{
+        id?: string
         content?: string
         comment?: string
         historyChanges?: string
       }>
     }
 
-    const items = (payload.actions || [])
+    const sortedActions = (payload.actions || []).slice().sort((a, b) => {
+      const idA = parseInt(a.id || "0", 10)
+      const idB = parseInt(b.id || "0", 10)
+      return idA - idB
+    })
+
+    const items = sortedActions
       .map((action) => {
         const content = htmlToPlainText(document, action.content || "")
         const comment = htmlToPlainText(document, action.comment || "")
