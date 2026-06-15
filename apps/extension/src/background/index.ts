@@ -203,21 +203,43 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
       appendSection("BUG详情", getElementText(mainElement))
     }
 
-    const historyHost = root.querySelector('[zui-key="historyWrapper"] [zui-create-historypanel], [zui-create-historypanel]')
-    const historyAttribute = historyHost?.getAttribute("zui-create-historypanel")
+    const historyContainer = root.querySelector('[zui-key="historyWrapper"], #history, .history, #actionbox, #historyBox')
     let historyLines: string[] = []
-    if (historyAttribute) {
-      try {
-        historyLines = extractHistoryLines(targetDocument, JSON.parse(historyAttribute.replace(/\r?\n/g, "\\n")) as {
-          actions?: Array<{ content?: string; comment?: string; historyChanges?: string }>
-        })
-      } catch (err) {
-        console.error("Failed to parse live ZenTao history:", err)
+
+    if (historyContainer) {
+      const testClone = historyContainer.cloneNode(true) as HTMLElement
+      testClone.querySelectorAll('[zui-create-historypanel]').forEach(el => el.remove())
+      const hasRendered = testClone.textContent.trim().length > 0 || testClone.children.length > 0
+
+      if (hasRendered) {
+        const items = Array.from(testClone.querySelectorAll('li, .history-item, .action'))
+        if (items.length > 0) {
+          historyLines = items.map(el => {
+            const clone = el.cloneNode(true) as HTMLElement
+            clone.querySelectorAll('.toolbar, .btn-toolbar, .actions, .dropdown-menu, .popover, .modal').forEach(node => node.remove())
+            return normalizeBlockText(clone.innerText || clone.textContent)
+          }).filter(Boolean)
+        }
       }
     }
-    if (historyLines.length === 0 && sourceText) {
-      historyLines = extractHistoryLinesFromSource(targetDocument, sourceText)
+
+    if (historyLines.length === 0) {
+      const historyHost = root.querySelector('[zui-key="historyWrapper"] [zui-create-historypanel], [zui-create-historypanel]')
+      const historyAttribute = historyHost?.getAttribute("zui-create-historypanel")
+      if (historyAttribute) {
+        try {
+          historyLines = extractHistoryLines(targetDocument, JSON.parse(historyAttribute.replace(/\r?\n/g, "\\n")) as {
+            actions?: Array<{ content?: string; comment?: string; historyChanges?: string }>
+          })
+        } catch (err) {
+          console.error("Failed to parse live ZenTao history:", err)
+        }
+      }
+      if (historyLines.length === 0 && sourceText) {
+        historyLines = extractHistoryLinesFromSource(targetDocument, sourceText)
+      }
     }
+
     historyLines = uniqueHistoryLines(historyLines)
     if (historyLines.length > 0) {
       markdownParts.push("## 历史记录")

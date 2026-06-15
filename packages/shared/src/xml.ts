@@ -13,6 +13,79 @@ export function escapeXml(unsafe: string): string {
 }
 
 /**
+ * 将 Markdown 列表文本正确解析为顶级列表项数组。
+ * 每一项以不带缩进或少许缩进的 "-", "*", 或自增数字 "1." 开头。
+ * 可以极佳地兼容包含多行、换行、复杂代码块 (curl)、子列表的列表项。
+ */
+export function splitMarkdownList(text: string): string[] {
+  const lines = text.split(/\r?\n/)
+  const items: string[][] = []
+  let currentItem: string[] = []
+
+  for (const line of lines) {
+    const isNewItem = /^ ?(?:-\s+|\d+\.\s+|\*\s+)/.test(line)
+
+    if (isNewItem) {
+      if (currentItem.length > 0) {
+        items.push(currentItem)
+      }
+      const cleanedLine = line.replace(/^ ?(?:-\s+|\d+\.\s+|\*\s+)/, "")
+      currentItem = [cleanedLine]
+    } else {
+      if (currentItem.length > 0) {
+        currentItem.push(line)
+      } else {
+        const trimmed = line.trim()
+        if (trimmed) {
+          currentItem.push(trimmed)
+        }
+      }
+    }
+  }
+
+  if (currentItem.length > 0) {
+    items.push(currentItem)
+  }
+
+  return items
+    .map(itemLines => {
+      if (itemLines.length <= 1) {
+        return itemLines[0] || ""
+      }
+
+      // Calculate common minimum indent length for subsequent lines
+      let minIndent = Infinity
+      const indentLines = itemLines.slice(1)
+
+      for (const line of indentLines) {
+        if (!line.trim()) continue
+        const match = line.match(/^( +|\t+)/)
+        const indentLen = match ? match[0].length : 0
+        if (indentLen < minIndent) {
+          minIndent = indentLen
+        }
+      }
+
+      const content = itemLines
+        .map((l, idx) => {
+          if (idx === 0) return l
+          if (minIndent > 0 && minIndent !== Infinity) {
+            if (l.startsWith(" ".repeat(minIndent))) {
+              return l.substring(minIndent)
+            } else if (l.startsWith("\t".repeat(minIndent))) {
+              return l.substring(minIndent)
+            }
+          }
+          return l
+        })
+        .join("\n")
+        .trim()
+      return content
+    })
+    .filter(Boolean)
+}
+
+/**
  * 将 PageCapture 转换为结构化的 XML
  * 对 Markdown 正文按二级标题进行分区块包裹，特化禅道 Bug 区块标签，同时支持图片和元数据处理。
  */
@@ -57,11 +130,7 @@ ${rawMarkdown}
       } else if (titleLower.includes("基本信息")) {
         sectionXmls.push(`  <basic_info>\n${blockText}\n  </basic_info>`)
       } else if (titleLower.includes("历史记录") || titleLower.includes("历史")) {
-        let cleanText = blockText.trim()
-        if (cleanText.startsWith("- ")) {
-          cleanText = cleanText.substring(2)
-        }
-        const items = cleanText.split(/\n-\s+/g).map(item => item.trim()).filter(Boolean)
+        const items = splitMarkdownList(blockText)
         const recordXmls = items.map(item => `    <record>${item}</record>`).join("\n")
         sectionXmls.push(`  <history_records>\n${recordXmls}\n  </history_records>`)
       } else {

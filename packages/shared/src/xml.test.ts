@@ -79,5 +79,32 @@ describe("xml utils", () => {
       const xml = formatPageCaptureToXml(page)
       expect(xml).toContain("<page_content_markdown>\nHello World\n  </page_content_markdown>")
     })
+
+    it("handles complex multi-line history records containing curl commands or sub-lists", () => {
+      const page = {
+        url: "https://zentao.local/bug-2.html",
+        title: "接口报500错误",
+        markdown: [
+          "# BUG #2 接口报500错误",
+          "",
+          "## 历史记录",
+          "- 第一条评论，已解决",
+          "- 接口返回的curl如下：",
+          "  ```bash",
+          "  curl 'http://zentao.local/api' \\",
+          "    -H 'Accept: */*'",
+          "  ```",
+          "  希望能尽快测试",
+          "- 第三条评论，已确认"
+        ].join("\n"),
+        images: [],
+        metadata: {}
+      }
+
+      const xml = formatPageCaptureToXml(page)
+      expect(xml).toContain("<record>第一条评论，已解决</record>")
+      expect(xml).toContain("<record>接口返回的curl如下：\n```bash\ncurl 'http://zentao.local/api' \\\n  -H 'Accept: */*'\n```\n希望能尽快测试</record>")
+      expect(xml).toContain("<record>第三条评论，已确认</record>")
+    })
   })
 })

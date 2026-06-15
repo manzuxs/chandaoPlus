@@ -85,4 +85,49 @@ describe("zentao-detail", () => {
     expect(result?.markdown).not.toContain("返回")
     expect(result?.images[0]?.sourceUrl).toBe("https://zentao.example.com/index.php?m=file&f=read&t=png&fileID=21648")
   })
+
+  it("extracts already rendered native HTML history elements and formats them", async () => {
+    const html = `
+      <body>
+        <div id="mainContent">
+          <div class="detail-view">
+            <div class="entity-title"><span class="entity-title-text">BUG #12345 页面死锁</span></div>
+            <div class="detail-main">
+              <div class="detail-sections" zui-key="main">
+                <div class="detail-section" zui-key="重现步骤">
+                  <div class="detail-section-title">重现步骤</div>
+                  <div class="detail-section-content">步骤1...</div>
+                </div>
+              </div>
+              <div class="detail-sections" zui-key="historyWrapper">
+                <ol class="history-list">
+                  <li class="history-item">
+                    <span class="time">2026-06-15 10:00:00</span> 由 <strong>用户A</strong> 创建。
+                  </li>
+                  <li class="history-item">
+                    <span class="time">2026-06-15 10:05:00</span> 由 <strong>用户B</strong> 备注。
+                    <div class="comment">
+                      下面是错误的curl:
+                      <pre><code>curl -X POST https://api.local</code></pre>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    `
+
+    const result = await extractZentaoBugDetailPageCapture({
+      url: "https://zentao.example.com/index.php?m=bug&f=view&bugID=12345",
+      html,
+      title: "BUG #12345"
+    })
+
+    expect(result?.markdown).toContain("历史记录")
+    expect(result?.markdown).toContain("2026-06-15 10:00:00")
+    expect(result?.markdown).toContain("2026-06-15 10:05:00")
+    expect(result?.markdown).toContain("curl -X POST https://api.local")
+  })
 })

@@ -77,6 +77,33 @@ function sanitizeClone(element: Element): HTMLElement {
 }
 
 function buildHistorySection(document: Document, root: ParentNode): HTMLElement | null {
+  const container = pickFirstElement(root, [
+    '[zui-key="historyWrapper"]',
+    '#history',
+    '.history',
+    '#actionbox',
+    '#historyBox'
+  ])
+
+  if (container) {
+    const testClone = container.cloneNode(true) as HTMLElement
+    testClone.querySelectorAll('[zui-create-historypanel]').forEach(el => el.remove())
+
+    const hasRendered = testClone.textContent.trim().length > 0 || testClone.children.length > 0
+    if (hasRendered) {
+      const section = document.createElement("section")
+      const heading = document.createElement("h2")
+      heading.textContent = "历史记录"
+      section.appendChild(heading)
+
+      // Clean toolbar and interactive elements from native DOM
+      testClone.querySelectorAll("script, style, noscript, iframe, link, meta, .toolbar, .btn-toolbar, .actions, .dropdown-menu, .popover, .modal").forEach((node) => node.remove())
+
+      section.appendChild(testClone)
+      return section
+    }
+  }
+
   const historyHost =
     pickFirstElement(root, ['[zui-key="historyWrapper"] [zui-create-historypanel]', '[zui-create-historypanel]']) ||
     null
