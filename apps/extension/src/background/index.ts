@@ -105,15 +105,17 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
 
   const getElementText = (element: Element | null): string => {
     if (!element) return ""
-    const htmlElement = element as HTMLElement
-    if (htmlElement.innerText) return normalizeBlockText(htmlElement.innerText)
+    const clone = element.cloneNode(true) as HTMLElement
+    clone.querySelectorAll('[zui-key="historyWrapper"], #history, .history, #actionbox, #historyBox').forEach((node) => node.remove())
 
-    const blockTexts = Array.from(element.querySelectorAll("p, li, tr, h1, h2, h3, h4"))
+    if (clone.innerText) return normalizeBlockText(clone.innerText)
+
+    const blockTexts = Array.from(clone.querySelectorAll("p, li, tr, h1, h2, h3, h4"))
       .map((node) => normalizeText(node.textContent))
       .filter(Boolean)
     if (blockTexts.length > 0) return blockTexts.join("\n")
 
-    return normalizeBlockText(element.textContent)
+    return normalizeBlockText(clone.textContent)
   }
 
   const extractHistoryLines = (

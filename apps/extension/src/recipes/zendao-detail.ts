@@ -69,6 +69,7 @@ function htmlToPlainText(document: Document, value: string): string {
 function sanitizeClone(element: Element): HTMLElement {
   const clone = element.cloneNode(true) as HTMLElement
   clone.querySelectorAll(SANITIZE_SELECTORS).forEach((node) => node.remove())
+  clone.querySelectorAll('[zui-key="historyWrapper"], #history, .history, #actionbox, #historyBox').forEach((node) => node.remove())
   clone.querySelectorAll("[hidden]").forEach((node) => node.remove())
   clone.querySelectorAll('[style*="display:none"], [style*="display: none"]').forEach((node) => node.remove())
   clone.querySelectorAll('img[src*="static/svg/chat.svg"]').forEach((node) => node.remove())
