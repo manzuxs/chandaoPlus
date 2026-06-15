@@ -37,6 +37,19 @@ const CheckIcon = () => (
   </svg>
 )
 
+const HistoryIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+
+const ChevronRightIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+)
+
 interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
@@ -170,8 +183,15 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+function formatSessionTime(iso: string): string {
+  return new Date(iso).toLocaleString("zh-CN", {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+  })
+}
+
 export function ChatThread({ messages, skills = [], onSelectSkill, sessions, activeSessionId, onSwitchSession }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     if (containerRef.current) {
@@ -179,24 +199,61 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
     }
   }, [messages])
 
+  const activeSession = sessions?.find((s) => s.id === activeSessionId)
+
   return (
     <div className="chat-thread" ref={containerRef}>
+      {/* 固定历史入口 */}
       {sessions && sessions.length >= 1 && (
-        <div className="session-selector">
-          <label className="session-selector-label">历史会话</label>
-          <select
-            value={activeSessionId ?? ""}
-            onChange={(e) => onSwitchSession?.(e.target.value)}
-            className="session-select"
+        <div className="session-bar">
+          <button
+            type="button"
+            className={`session-bar-toggle ${historyOpen ? "open" : ""}`}
+            onClick={() => setHistoryOpen(!historyOpen)}
           >
-            {sessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title || s.id.slice(0, 8)} · {s.messageCount} 条消息 · {new Date(s.updatedAt).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </option>
-            ))}
-          </select>
+            <HistoryIcon />
+            <span className="session-bar-label">
+              {activeSession ? (activeSession.title || activeSession.id.slice(0, 8)) : "历史会话"}
+            </span>
+            <span className="session-bar-count">{sessions.length}</span>
+            <span className={`session-bar-chevron ${historyOpen ? "open" : ""}`}>
+              <ChevronRightIcon />
+            </span>
+          </button>
+
+          {/* 展开的历史列表 */}
+          {historyOpen && (
+            <div className="session-drawer">
+              {sessions.map((s) => {
+                const isActive = s.id === activeSessionId
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`session-item ${isActive ? "active" : ""}`}
+                    onClick={() => {
+                      onSwitchSession?.(s.id)
+                      setHistoryOpen(false)
+                    }}
+                  >
+                    <div className="session-item-top">
+                      <span className="session-item-title">
+                        {s.title || s.id.slice(0, 8)}
+                      </span>
+                      <span className="session-item-time">{formatSessionTime(s.updatedAt)}</span>
+                    </div>
+                    <div className="session-item-meta">
+                      {s.messageCount} 条消息
+                      {isActive && <span className="session-item-current">当前</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
+
       {messages.length === 0 ? (
         <div className="empty-thread">
           <div className="welcome-section">
