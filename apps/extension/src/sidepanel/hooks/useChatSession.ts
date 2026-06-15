@@ -5,9 +5,11 @@ import { captureActiveTabPage } from "../../lib/page-capture"
 export function useChatSession(workspaceId: string) {
   const [workspaces, setWorkspaces] = useState<WorkspaceProfile[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [sending, setSending] = useState(false)
-  const [statusText, setStatusText] = useState("")
+  const [sessionStates, setSessionStates] = useState<Record<string, {
+    messages: ChatMessage[]
+    sending: boolean
+    statusText: string
+  }>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
 
@@ -51,12 +53,20 @@ export function useChatSession(workspaceId: string) {
           fetch(`http://127.0.0.1:3210/api/sessions/${stored}`)
             .then((r) => r.json())
             .then((session) => {
-              if (session.messages) setMessages(session.messages)
+              if (session.messages) {
+                setSessionStates((prev) => ({
+                  ...prev,
+                  [stored]: {
+                    messages: session.messages,
+                    sending: prev[stored]?.sending || false,
+                    statusText: prev[stored]?.statusText || ""
+                  }
+                }))
+              }
             })
             .catch(() => {})
         } else {
           setSessionId(null)
-          setMessages([])
         }
       })
     }
@@ -73,7 +83,15 @@ export function useChatSession(workspaceId: string) {
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
       const handleProgressMessage = (message: any) => {
         if (message.type === "CAPTURE_PROGRESS") {
-          setStatusText(message.content)
+          const currentActiveId = sessionId || "temp"
+          setSessionStates((prev) => ({
+            ...prev,
+            [currentActiveId]: {
+              messages: prev[currentActiveId]?.messages || [],
+              sending: prev[currentActiveId]?.sending || false,
+              statusText: message.content
+            }
+          }))
         }
       }
       chrome.runtime.onMessage.addListener(handleProgressMessage)
@@ -81,7 +99,7 @@ export function useChatSession(workspaceId: string) {
         chrome.runtime.onMessage.removeListener(handleProgressMessage)
       }
     }
-  }, [])
+  }, [sessionId])
 
   const addWorkspace = async (profile: WorkspaceProfile) => {
     try {
@@ -144,9 +162,13 @@ export function useChatSession(workspaceId: string) {
         method: "DELETE"
       })
       if (res.ok) {
+        setSessionStates((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
         if (id === sessionId) {
           setSessionId(null)
-          setMessages([])
           if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
             await chrome.storage.local.remove(`session_${workspaceId}`)
           }
@@ -164,7 +186,11 @@ export function useChatSession(workspaceId: string) {
 
   const newSession = useCallback(() => {
     setSessionId(null)
-    setMessages([])
+    setSessionStates((prev) => {
+      const next = { ...prev }
+      delete next.temp
+      return next
+    })
   }, [])
 
   const loadSession = useCallback(async (id: string) => {
@@ -174,7 +200,14 @@ export function useChatSession(workspaceId: string) {
       const session = await res.json()
       if (session.messages) {
         setSessionId(id)
-        setMessages(session.messages)
+        setSessionStates((prev) => ({
+          ...prev,
+          [id]: {
+            messages: session.messages,
+            sending: prev[id]?.sending || false,
+            statusText: prev[id]?.statusText || ""
+          }
+        }))
       }
     } catch (err) {
       console.error("Failed to load session:", err)
@@ -187,20 +220,44 @@ export function useChatSession(workspaceId: string) {
     command: ChatCommand
     input: string
   }) => {
-    if (sending) return
-    setSending(true)
-    setStatusText("正在捕获页面内容...")
+    let activeId = sessionId
+    const targetKey = activeId || "temp"
+    
+    // Check if currently sending for this specific targetKey
+    if (sessionStates[targetKey]?.sending) return
 
-    // Clear previous stream messages and set up user message
     const userMsg: ChatMessage = { role: "user", content: params.input || `执行命令: ${params.command}` }
-    setMessages((prev) => [...prev, userMsg])
+    
+    setSessionStates((prev) => {
+      const state = prev[targetKey] || { messages: [], sending: false, statusText: "" }
+      return {
+        ...prev,
+        [targetKey]: {
+          messages: [...state.messages, userMsg],
+          sending: true,
+          statusText: "正在捕获页面内容..."
+        }
+      }
+    })
 
     let isAssistantMsgAdded = false
+    let assistantMsg: ChatMessage = { role: "assistant", content: "" }
+
     try {
-      setStatusText("正在提取当前网页...")
+      // Step 1: Capture page
       const pageCapture = await captureActiveTabPage()
 
-      setStatusText("正在连接网关...")
+      setSessionStates((prev) => {
+        const key = activeId || "temp"
+        return {
+          ...prev,
+          [key]: {
+            ...prev[key],
+            statusText: "正在连接网关..."
+          }
+        }
+      })
+
       const payload: Record<string, unknown> = {
         workspaceId: params.workspaceId,
         agent: params.agent,
@@ -208,8 +265,8 @@ export function useChatSession(workspaceId: string) {
         page: pageCapture,
         messages: [userMsg]
       }
-      if (sessionId) {
-        payload.sessionId = sessionId
+      if (activeId) {
+        payload.sessionId = activeId
       }
 
       const response = await fetch("http://127.0.0.1:3210/api/chat/stream", {
@@ -226,11 +283,6 @@ export function useChatSession(workspaceId: string) {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
-      let assistantMsg: ChatMessage = { role: "assistant", content: "" }
-
-      // Append empty assistant message for streaming
-      setMessages((prev) => [...prev, assistantMsg])
-      isAssistantMsgAdded = true
 
       while (reader) {
         const { done, value } = await reader.read()
@@ -246,57 +298,121 @@ export function useChatSession(workspaceId: string) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
               if (chunk.type === "meta" && chunk.sessionId) {
-                setSessionId(chunk.sessionId)
-              } else if (chunk.type === "status" || chunk.type === "progress") {
-                setStatusText(chunk.content)
-              } else if (chunk.type === "text") {
-                assistantMsg.content += chunk.content
-                setMessages((prev) => {
-                  const next = [...prev]
-                  next[next.length - 1] = { ...assistantMsg }
+                const newId = chunk.sessionId
+                activeId = newId
+                setSessionId(newId)
+                setSessionStates((prev) => {
+                  const tempState = prev.temp || { messages: [], sending: true, statusText: "" }
+                  const next = { ...prev }
+                  delete next.temp
+                  next[newId] = {
+                    messages: tempState.messages,
+                    sending: true,
+                    statusText: tempState.statusText
+                  }
                   return next
                 })
+              } else if (chunk.type === "status" || chunk.type === "progress") {
+                const currentKey = activeId || "temp"
+                setSessionStates((prev) => ({
+                  ...prev,
+                  [currentKey]: {
+                    ...prev[currentKey],
+                    statusText: chunk.content
+                  }
+                }))
+              } else if (chunk.type === "text") {
+                assistantMsg.content += chunk.content
+                const currentKey = activeId || "temp"
+                setSessionStates((prev) => {
+                  const state = prev[currentKey] || { messages: [], sending: true, statusText: "" }
+                  const nextMessages = [...state.messages]
+                  if (!isAssistantMsgAdded) {
+                    nextMessages.push(assistantMsg)
+                    isAssistantMsgAdded = true
+                  } else {
+                    nextMessages[nextMessages.length - 1] = { ...assistantMsg }
+                  }
+                  return {
+                    ...prev,
+                    [currentKey]: {
+                      ...state,
+                      messages: nextMessages
+                    }
+                  }
+                })
               } else if (chunk.type === "error") {
-                setStatusText(`错误: ${chunk.content}`)
+                const currentKey = activeId || "temp"
                 assistantMsg.content += `\n[错误: ${chunk.content}]`
-                setMessages((prev) => {
-                  const next = [...prev]
-                  next[next.length - 1] = { ...assistantMsg }
-                  return next
+                setSessionStates((prev) => {
+                  const state = prev[currentKey] || { messages: [], sending: true, statusText: "" }
+                  const nextMessages = [...state.messages]
+                  if (!isAssistantMsgAdded) {
+                    nextMessages.push(assistantMsg)
+                    isAssistantMsgAdded = true
+                  } else {
+                    nextMessages[nextMessages.length - 1] = { ...assistantMsg }
+                  }
+                  return {
+                    ...prev,
+                    [currentKey]: {
+                      ...state,
+                      statusText: `错误: ${chunk.content}`,
+                      messages: nextMessages
+                    }
+                  }
                 })
               }
             } catch (e) {
-              // Ignore parse error on partial SSE chunks
+              // Ignore partial chunk JSON parse exceptions
             }
           }
         }
       }
-      setStatusText("")
+
+      const currentKey = activeId || "temp"
+      setSessionStates((prev) => ({
+        ...prev,
+        [currentKey]: {
+          ...prev[currentKey],
+          statusText: ""
+        }
+      }))
     } catch (err: any) {
       console.error(err)
-      setStatusText(`连接错误: ${err.message}`)
-      if (isAssistantMsgAdded) {
-        setMessages((prev) => {
-          const next = [...prev]
-          const lastMsg = next[next.length - 1]
-          if (lastMsg && lastMsg.role === "assistant") {
-            next[next.length - 1] = {
-              ...lastMsg,
-              content: lastMsg.content
-                ? `${lastMsg.content}\n[发送请求失败: ${err.message}]`
-                : `发送请求失败: ${err.message}`
-            }
+      const currentKey = activeId || "temp"
+      setSessionStates((prev) => {
+        const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
+        const nextMessages = [...state.messages]
+        if (isAssistantMsgAdded) {
+          const lastMsg = nextMessages[nextMessages.length - 1]
+          nextMessages[nextMessages.length - 1] = {
+            ...lastMsg,
+            content: lastMsg.content
+              ? `${lastMsg.content}\n[发送请求失败: ${err.message}]`
+              : `发送请求失败: ${err.message}`
           }
-          return next
-        })
-      } else {
-        setMessages((prev) => [
+        } else {
+          nextMessages.push({ role: "assistant", content: `发送请求失败: ${err.message}` })
+        }
+        return {
           ...prev,
-          { role: "assistant", content: `发送请求失败: ${err.message}` }
-        ])
-      }
+          [currentKey]: {
+            ...state,
+            statusText: `连接错误: ${err.message}`,
+            messages: nextMessages
+          }
+        }
+      })
     } finally {
-      setSending(false)
+      const currentKey = activeId || "temp"
+      setSessionStates((prev) => ({
+        ...prev,
+        [currentKey]: {
+          ...prev[currentKey],
+          sending: false
+        }
+      }))
       setSessionVersion((v) => v + 1)
     }
   }
@@ -336,6 +452,15 @@ export function useChatSession(workspaceId: string) {
       alert("删除技能失败")
     }
   }
+
+  // Derive active session state
+  const activeState = sessionId
+    ? (sessionStates[sessionId] || { messages: [], sending: false, statusText: "" })
+    : (sessionStates["temp"] || { messages: [], sending: false, statusText: "" })
+
+  const messages = activeState.messages
+  const sending = activeState.sending
+  const statusText = activeState.statusText
 
   return {
     workspaces,

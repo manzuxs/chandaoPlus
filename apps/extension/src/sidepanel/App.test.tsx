@@ -276,4 +276,213 @@ describe("App", () => {
       expect(screen.queryByText("会话一")).toBeNull()
     })
   })
+
+  it("supports switching sessions during active streaming without crosstalk", async () => {
+    let controllerA: ReadableStreamDefaultController | null = null
+    const streamA = new ReadableStream({
+      start(c) {
+        controllerA = c
+      }
+    })
+
+    let controllerB: ReadableStreamDefaultController | null = null
+    const streamB = new ReadableStream({
+      start(c) {
+        controllerB = c
+      }
+    })
+
+    let sessionList = [
+      {
+        id: "session-A",
+        workspaceId: "ws-1",
+        title: "会话 A",
+        messageCount: 2,
+        lastMessage: "A-part2",
+        createdAt: "2026-06-15T03:00:00Z",
+        updatedAt: "2026-06-15T03:00:00Z"
+      },
+      {
+        id: "session-B",
+        workspaceId: "ws-1",
+        title: "会话 B",
+        messageCount: 2,
+        lastMessage: "B-part1",
+        createdAt: "2026-06-15T03:01:00Z",
+        updatedAt: "2026-06-15T03:01:00Z"
+      }
+    ]
+
+    let streamCallCount = 0
+
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }])
+        })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: "estimate",
+              name: "评估工期",
+              icon: "⏱️",
+              description: "评估",
+              keywords: [],
+              promptTemplate: "请评估",
+              outputFormat: "markdown",
+              builtin: true
+            }
+          ])
+        })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(sessionList)
+        })
+      }
+      if (url.includes("/api/sessions/session-A")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: "session-A",
+            workspaceId: "ws-1",
+            messages: [
+              { role: "user", content: "Query A" },
+              { role: "assistant", content: "A-part1A-part2" }
+            ]
+          })
+        })
+      }
+      if (url.includes("/api/sessions/session-B")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: "session-B",
+            workspaceId: "ws-1",
+            messages: [
+              { role: "user", content: "Query B" },
+              { role: "assistant", content: "B-part1" }
+            ]
+          })
+        })
+      }
+      if (url.includes("/api/chat/stream")) {
+        streamCallCount++
+        if (streamCallCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            body: streamA
+          })
+        } else {
+          return Promise.resolve({
+            ok: true,
+            body: streamB
+          })
+        }
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+
+    const storageGetMock = vi.fn().mockImplementation((keys: any, callback?: any) => {
+      const result: Record<string, any> = { lastWorkspaceId: "ws-1" }
+      if (typeof callback === "function") {
+        callback(result)
+      }
+      return Promise.resolve(result)
+    })
+
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn().mockImplementation((message: { type: string }, callback: (response: any) => void) => {
+          if (message.type === "CAPTURE_ACTIVE_TAB") {
+            callback({
+              url: "https://zentao.local/bug-view-1.html",
+              title: "BUG #1",
+              markdown: "# BUG #1\n\n页面白屏",
+              images: [],
+              metadata: {
+                pageKind: "zentao-bug-detail",
+                bugId: "1"
+              }
+            })
+          }
+        }),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: storageGetMock,
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    // 1. 等待工作空间渲染
+    await screen.findByText("工作空间一")
+
+    // 2. 发送 Session A 消息 (Query A)
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "Query A" } })
+    const sendBtn = screen.getByRole("button", { name: "发送" })
+    fireEvent.click(sendBtn)
+
+    // 3. 模拟 Stream A 返回 meta（包含 id）与部分字符
+    const encoder = new TextEncoder()
+    expect(controllerA).toBeTruthy()
+    controllerA!.enqueue(encoder.encode('data: {"type": "meta", "sessionId": "session-A"}\n'))
+    controllerA!.enqueue(encoder.encode('data: {"type": "text", "content": "A-part1"}\n'))
+
+    // 4. 等待 A-part1 渲染
+    await screen.findByText("A-part1")
+
+    // 5. 在 Stream A 依然开启的情况下，模拟切换到“新建会话”（temp）
+    const historyBtn = screen.getByRole("button", { name: "历史会话" })
+    fireEvent.click(historyBtn)
+    await screen.findByText("+ 新建会话")
+    const newSessionBtn = screen.getByRole("button", { name: "+ 新建会话" })
+    fireEvent.click(newSessionBtn)
+
+    // 确认切回空界面
+    await waitFor(() => {
+      expect(screen.queryByText("A-part1")).toBeNull()
+    })
+
+    // 6. 在新建会话发送 Session B 消息 (Query B)
+    fireEvent.change(textarea, { target: { value: "Query B" } })
+    fireEvent.click(sendBtn)
+
+    // 7. 模拟 Stream B 返回 meta 类似与内容
+    expect(controllerB).toBeTruthy()
+    controllerB!.enqueue(encoder.encode('data: {"type": "meta", "sessionId": "session-B"}\n'))
+    controllerB!.enqueue(encoder.encode('data: {"type": "text", "content": "B-part1"}\n'))
+
+    // 8. 等待 B-part1 渲染
+    await screen.findByText("B-part1")
+    expect(screen.queryByText("A-part1")).toBeNull() // 确无交叉串线
+
+    // 9. 此时，在后台向 Stream A 写入后续数据并关闭它，同时关闭 Stream B
+    controllerA!.enqueue(encoder.encode('data: {"type": "text", "content": "A-part2"}\n'))
+    controllerA!.close()
+    controllerB!.close()
+
+    // 10. 切换回 Session A
+    fireEvent.click(historyBtn)
+    // 渲染历史会话列表，点击“会话 A”
+    const sessionAItem = await screen.findByText("会话 A")
+    fireEvent.click(sessionAItem)
+
+    // 11. 验证 Session A 中后台追加的内容已成功合并，完整呈现在 UI 上
+    await screen.findByText("A-part1A-part2")
+    expect(screen.queryByText("B-part1")).toBeNull()
+  })
 })
