@@ -317,20 +317,7 @@ export function App() {
           </div>
         )}
 
-        {messages.length > 0 && !sending && (
-          <div className="quick-skills-row">
-            {skills.map((skill) => (
-              <button
-                key={skill.id}
-                type="button"
-                className="btn-pill btn-pill-secondary"
-                onClick={() => selectSlashCommand(skill)}
-              >
-                {skill.icon} {skill.name}
-              </button>
-            ))}
-          </div>
-        )}
+
 
         <div className="input-card">
           {showSlashMenu && (
