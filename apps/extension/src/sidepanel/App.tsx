@@ -108,7 +108,7 @@ export function App() {
     setConfirmData({ title, message, onConfirm })
     setConfirmOpen(true)
   }
-  const [command, setCommand] = useState<ChatCommand>("estimate")
+  const [command, setCommand] = useState<ChatCommand>("default")
   const [agent, setAgent] = useState<"claude-code" | "codex">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
@@ -181,10 +181,11 @@ export function App() {
 
   const filteredCommands = getFilteredCommands()
   const showSlashMenu = input.startsWith("/") && filteredCommands.length > 0
+  const selectedSkill = command && command !== "default" ? skills.find((s) => s.id === command) : null
 
   const selectSlashCommand = (skill: Skill) => {
     setCommand(skill.id)
-    setInput(skill.promptTemplate.split("\n")[0] || skill.name)
+    setInput("") // 选中技能时清空输入框，不再填充首行文本
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()
@@ -292,10 +293,7 @@ export function App() {
         <ChatThread
           messages={messages}
           skills={skills}
-          onSelectSkill={(skill) => {
-            setCommand(skill.id)
-            setInput(skill.promptTemplate.split("\n")[0] || skill.name)
-          }}
+          onSelectSkill={selectSlashCommand}
         />
       </div>
 
@@ -336,6 +334,21 @@ export function App() {
               ))}
             </div>
           )}
+          {selectedSkill && (
+            <div className="input-skill-badge">
+              <span className="skill-badge-icon">{selectedSkill.icon}</span>
+              <span className="skill-badge-name">{selectedSkill.name}</span>
+              <button
+                type="button"
+                className="skill-badge-close"
+                onClick={() => setCommand("default")}
+                title="取消使用该技能"
+                aria-label="取消技能"
+              >
+                <XIcon />
+              </button>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={input}
@@ -348,7 +361,9 @@ export function App() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
-                if (workspaceId && !sending && input.trim()) {
+                const hasInput = input.trim()
+                const hasSkill = command && command !== "default"
+                if (workspaceId && !sending && (hasInput || hasSkill)) {
                   send({
                     workspaceId,
                     agent,

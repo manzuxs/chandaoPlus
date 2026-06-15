@@ -825,6 +825,75 @@ button {
   opacity: 0.4;
 }
 
+/* Input Skill Badge */
+.input-skill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  align-self: flex-start;
+  padding: 4px 8px;
+  background-color: #f0f7ff;
+  border: 1px solid #cce3ff;
+  border-radius: var(--radius-sm);
+  color: #0969da;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: var(--weight-link);
+  margin-bottom: var(--space-xxs);
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .input-skill-badge {
+    background-color: #0f2038;
+    border-color: #1a3a60;
+    color: #58a6ff;
+  }
+}
+
+.skill-badge-icon {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.skill-badge-name {
+  white-space: nowrap;
+}
+
+.skill-badge-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-left: 2px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+.skill-badge-close svg {
+  width: 12px;
+  height: 12px;
+}
+
+.skill-badge-close:hover {
+  opacity: 1;
+  background-color: rgba(9, 105, 218, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .skill-badge-close:hover {
+    background-color: rgba(88, 166, 255, 0.15);
+  }
+}
+
 /* Toolbar */
 .input-toolbar {
   display: flex;

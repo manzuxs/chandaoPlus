@@ -91,11 +91,29 @@ describe("App", () => {
   it("requires workspace selection before sending", async () => {
     render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    
+    // 欢迎页中的快捷技能卡片
     await screen.findByText("评估工期与修复方案")
 
     expect((screen.getByRole("button", { name: "发送" }) as HTMLButtonElement).disabled).toBe(true)
+    
+    // 点击选择该技能
     fireEvent.click(screen.getByText("评估工期与修复方案"))
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("请评估这个问题的修复工期、风险和建议方案。")
+    
+    // 现在选中技能不会填充文本框，值应保持为空
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("")
+    
+    // 但输入框上方应当成功渲染出当前选中的技能标签
+    const badge = document.querySelector(".input-skill-badge")
+    expect(badge).toBeTruthy()
+    expect(badge?.querySelector(".skill-badge-name")?.textContent).toBe("评估工期与修复方案")
+
+    // 测试取消使用该技能
+    const closeBtn = screen.getByRole("button", { name: "取消技能" })
+    fireEvent.click(closeBtn)
+    
+    // 取消后，标签应该从页面上消失
+    expect(document.querySelector(".input-skill-badge")).toBeNull()
 
     await waitFor(() => {
       expect(screen.getByText(/选择工作空间/i)).toBeTruthy()
