@@ -193,9 +193,6 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
       appendSection("BUG详情", getElementText(mainElement))
     }
 
-    const sideElement = root.querySelector(".detail-side, .side-col, aside")
-    appendSection("基本信息", getElementText(sideElement))
-
     const historyHost = root.querySelector('[zui-key="historyWrapper"] [zui-create-historypanel], [zui-create-historypanel]')
     const historyAttribute = historyHost?.getAttribute("zui-create-historypanel")
     let historyLines: string[] = []

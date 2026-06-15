@@ -50,7 +50,7 @@ describe("POST /api/chat/stream", () => {
 
   it("reuses existing session when valid sessionId provided", async () => {
     const messages: any[] = []
-    const existingSession = { id: "550e8400-e29b-41d4-a716-446655440000", messages: [] as any[] }
+    const existingSession = { id: "550e8400-e29b-41d4-a716-446655440000", workspaceId: "project-a", messages: [] as any[] }
     const app = createServer({
       workspaceStore: {
         get: async () => ({ id: "project-a", label: "A项目", rootPath: "/tmp/project-a", defaultAgent: "claude-code" })
@@ -64,7 +64,8 @@ describe("POST /api/chat/stream", () => {
         appendMessage: async (sid: string, msg: any) => { messages.push({ sid, msg }) },
         addContextBundleDir: async () => {},
         updateTitle: async () => {},
-        updateCodexThreadId: async () => {}
+        updateCodexThreadId: async () => {},
+        updateConfig: async () => {}
       },
       agentRegistry: {
         get: () => ({

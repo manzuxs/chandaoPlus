@@ -39,11 +39,8 @@ export function registerChatRoutes(app: any, deps: any) {
         })
         sessionId = session.id
         request.sessionId = sessionId
-        const firstUserMsg = request.messages.find((m: { role: string }) => m.role === "user")
-        if (firstUserMsg) {
-          const title = firstUserMsg.content.replace(/\n/g, " ").slice(0, 50)
-          await deps.sessionStore.updateTitle(sessionId, title)
-        }
+        const title = request.page.title || "新会话"
+        await deps.sessionStore.updateTitle(sessionId, title)
       }
 
       // 持久化用户消息

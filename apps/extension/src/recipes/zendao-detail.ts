@@ -160,7 +160,6 @@ function buildFocusedHtml(document: Document): string {
 
   appendIfNeeded(titleElement)
   appendIfNeeded(mainElement)
-  appendIfNeeded(sideElement)
   if (historyElement) {
     wrapper.appendChild(historyElement)
   }

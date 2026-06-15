@@ -1,4 +1,5 @@
 import type { PageCapture } from "@chandaoplus/shared"
+import { formatPageCaptureToXml } from "@chandaoplus/shared"
 
 function getMockPageCapture(): PageCapture {
   return {
@@ -38,33 +39,5 @@ export async function captureActiveTabPage(): Promise<PageCapture> {
 }
 
 export function formatPageCapturePreview(capture: PageCapture): string {
-  const metadataText = Object.keys(capture.metadata).length > 0
-    ? JSON.stringify(capture.metadata, null, 2)
-    : "{}"
-
-  const imageLines = capture.images.length > 0
-    ? capture.images.map((image, index) =>
-        [
-          `- 图片 ${index + 1}`,
-          `  filename: ${image.filename}`,
-          `  alt: ${image.alt || "(empty)"}`,
-          `  mimeType: ${image.mimeType}`,
-          `  sourceUrl: ${image.sourceUrl}`
-        ].join("\n")
-      ).join("\n")
-    : "- 无"
-
-  return [
-    `URL: ${capture.url}`,
-    `标题: ${capture.title}`,
-    "",
-    "Metadata:",
-    metadataText,
-    "",
-    "Images:",
-    imageLines,
-    "",
-    "Markdown:",
-    capture.markdown
-  ].join("\n")
+  return formatPageCaptureToXml(capture)
 }

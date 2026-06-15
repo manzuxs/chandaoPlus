@@ -22,10 +22,12 @@ describe("page-capture", () => {
       }
     })
 
-    expect(preview).toContain("URL: https://zentao.local/bug-view-2.html")
-    expect(preview).toContain("标题: BUG #2")
-    expect(preview).toContain("\"pageKind\": \"zentao-bug-detail\"")
-    expect(preview).toContain("sourceUrl: https://zentao.local/file-read-2.png")
+    expect(preview).toContain("<page_context>")
+    expect(preview).toContain("<url>https://zentao.local/bug-view-2.html</url>")
+    expect(preview).toContain("<title>BUG #2</title>")
+    expect(preview).toContain("<pageKind>zentao-bug-detail</pageKind>")
+    expect(preview).toContain("<bugId>2</bugId>")
+    expect(preview).toContain("<sourceUrl>https://zentao.local/file-read-2.png</sourceUrl>")
     expect(preview).toContain("# BUG #2")
     expect(preview).not.toContain("should-not-appear")
     expect(preview).not.toContain("base64Data")

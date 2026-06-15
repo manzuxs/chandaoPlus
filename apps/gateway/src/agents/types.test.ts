@@ -29,7 +29,8 @@ describe("buildPrompt", () => {
       skill: estimateSkill,
     })
 
-    expect(prompt).toContain("当前命令: estimate")
+    expect(prompt).toContain("<command>estimate</command>")
+    expect(prompt).toContain("<skill_instruction>")
     expect(prompt).toContain("请严格按以下 Markdown 结构输出")
     expect(prompt).toContain("## 问题摘要")
     expect(prompt).toContain("## 修复方案")
@@ -48,11 +49,11 @@ describe("buildPrompt", () => {
       ],
     })
 
-    expect(prompt).toContain("## 对话历史")
-    expect(prompt).toContain("**User:** 这是什么bug？")
-    expect(prompt).toContain("**Assistant:** 这是一个空指针异常")
-    expect(prompt).toContain("## 当前任务")
-    expect(prompt).toContain("如何修复？")
+    expect(prompt).toContain("<conversation_history>")
+    expect(prompt).toContain('<message role="user">这是什么bug？</message>')
+    expect(prompt).toContain('<message role="assistant">这是一个空指针异常</message>')
+    expect(prompt).toContain("<current_task>")
+    expect(prompt).toContain("<user_request>如何修复？</user_request>")
   })
 
   it("skips history section when only one message", () => {
@@ -63,7 +64,44 @@ describe("buildPrompt", () => {
       messages: [{ role: "user", content: "hello" }],
     })
 
-    expect(prompt).not.toContain("## 对话历史")
-    expect(prompt).toContain("用户请求: hello")
+    expect(prompt).not.toContain("<conversation_history>")
+    expect(prompt).toContain("<user_request>hello</user_request>")
+  })
+
+  it("includes XML context when page object is provided", () => {
+    const prompt = buildPrompt({
+      command: "default",
+      workspaceRoot: "/ws",
+      bundleDir: "/tmp/bundle",
+      messages: [{ role: "user", content: "评估" }],
+      page: {
+        url: "https://example.com/bug/123",
+        title: "页面加载缓慢",
+        markdown: "# 详情\n\n系统在特定网络下非常慢。",
+        images: [
+          {
+            filename: "image-1.png",
+            alt: "截图",
+            mimeType: "image/png",
+            sourceUrl: "https://example.com/img.png",
+            base64Data: "abc",
+          },
+        ],
+        metadata: {
+          bugId: "123",
+          status: "active",
+        },
+      },
+    })
+
+    expect(prompt).toContain("<page_context>")
+    expect(prompt).toContain("<url>https://example.com/bug/123</url>")
+    expect(prompt).toContain("<title>页面加载缓慢</title>")
+    expect(prompt).toContain("<bugId>123</bugId>")
+    expect(prompt).toContain("<status>active</status>")
+    expect(prompt).toContain("<filename>image-1.png</filename>")
+    expect(prompt).toContain("<localPath>/tmp/bundle/images/image-1.png</localPath>")
+    expect(prompt).toContain("<page_content_markdown>")
+    expect(prompt).toContain("# 详情")
   })
 })

@@ -165,10 +165,11 @@ describe("App", () => {
     })
 
     const copiedText = writeTextMock.mock.calls[0]?.[0] as string
-    expect(copiedText).toContain("URL: https://zentao.local/bug-view-1.html")
-    expect(copiedText).toContain("标题: BUG #1")
-    expect(copiedText).toContain("\"bugId\": \"1\"")
-    expect(copiedText).toContain("image-1.png")
+    expect(copiedText).toContain("<page_context>")
+    expect(copiedText).toContain("<url>https://zentao.local/bug-view-1.html</url>")
+    expect(copiedText).toContain("<title>BUG #1</title>")
+    expect(copiedText).toContain("<bugId>1</bugId>")
+    expect(copiedText).toContain("<filename>image-1.png</filename>")
     expect(copiedText).toContain("# BUG #1")
     expect(copiedText).not.toContain("ZmFrZQ==")
   })

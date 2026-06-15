@@ -48,7 +48,12 @@ export const claudeCodeAdapter: AgentAdapter = {
       pageTitle: request.page.title,
       pageUrl: request.page.url,
       skill,
+      page: request.page,
     })
+
+    console.log("=== [Claude Code Agent Prompt] ===")
+    console.log(prompt)
+    console.log("==================================")
     const bin = process.env.CLAUDE_BIN || CLAUDE_BIN
     const rawArgs = process.env.CLAUDE_ARGS || CLAUDE_ARGS
     const args = rawArgs.split(/\s+/).filter(Boolean)

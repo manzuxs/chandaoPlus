@@ -72,7 +72,12 @@ export const codexAdapter: AgentAdapter = {
       pageTitle: request.page.title,
       pageUrl: request.page.url,
       skill,
+      page: request.page,
     })
+
+    console.log("=== [Codex Agent Prompt] ===")
+    console.log(prompt)
+    console.log("============================")
 
     let codexThreadId: string | undefined
     if (request.sessionId && sessionStore) {
