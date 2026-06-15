@@ -32,6 +32,12 @@ describe("App", () => {
           ])
         })
       }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        })
+      }
       return Promise.reject(new Error(`Unhandled fetch: ${url}`))
     })
 
@@ -90,7 +96,7 @@ describe("App", () => {
 
   it("requires workspace selection before sending", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
     
     // 欢迎页中的快捷技能卡片
     await screen.findByText("评估工期与修复方案")
@@ -122,7 +128,7 @@ describe("App", () => {
 
   it("filters command list dynamically when query changes", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
     await screen.findByText("评估工期与修复方案")
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
@@ -144,7 +150,7 @@ describe("App", () => {
 
   it("copies the extracted page preview from the header button", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
 
     const headerActions = screen.getByRole("button", { name: "选择工作空间" }).parentElement
     const copyButton = screen.getByRole("button", { name: "复制当前网页内容" })
@@ -232,6 +238,12 @@ describe("App", () => {
             workspaceId: "ws-1",
             messages: [{ role: "user", content: "你好" }]
           })
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
         })
       }
       return Promise.reject(new Error(`Unhandled fetch: ${url}`))
@@ -404,6 +416,12 @@ describe("App", () => {
           })
         }
       }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        })
+      }
       return Promise.reject(new Error(`Unhandled fetch: ${url}`))
     })
 
@@ -559,6 +577,12 @@ describe("App", () => {
         return Promise.resolve({
           ok: true,
           body: stream
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
         })
       }
       return Promise.reject(new Error(`Unhandled fetch: ${url}`))

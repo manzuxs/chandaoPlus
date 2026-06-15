@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import type { ChatCommand, SessionListItem, Skill } from "@chandaoplus/shared"
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
@@ -125,9 +125,40 @@ export function App() {
   const [command, setCommand] = useState<ChatCommand>("default")
   const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode">("claude-code")
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  const [agentModelMenuOpen, setAgentModelMenuOpen] = useState(false)
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [input, setInput] = useState("")
+
+  const [agentSettings, setAgentSettings] = useState<Record<string, { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" }>>(() => {
+    try {
+      const saved = localStorage.getItem("chandaoplus_agent_settings")
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    return {
+      "claude-code": { model: "default", effort: "medium" },
+      "codex": { model: "default", effort: "medium" },
+      "opencode": { model: "default", effort: "medium" }
+    }
+  })
+
+  const updateAgentSettings = (targetAgent: string, config: { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" }) => {
+    setAgentSettings((prev) => {
+      const next = {
+        ...prev,
+        [targetAgent]: {
+          ...prev[targetAgent],
+          ...config
+        }
+      }
+      localStorage.setItem("chandaoplus_agent_settings", JSON.stringify(next))
+      return next
+    })
+  }
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
   const [copiedStatus, setCopiedStatus] = useState(false)
@@ -137,14 +168,86 @@ export function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
 
+  const [cachedModels, setCachedModels] = useState<Record<string, { id: string; name: string; hasReasoning: boolean }[]>>({
+    "claude-code": [],
+    "codex": [],
+    "opencode": []
+  })
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [hoveredAgent, setHoveredAgent] = useState<"claude-code" | "codex" | "opencode" | null>(null)
+
+  const activeFetchAgent = hoveredAgent || agent
+
+  const fetchModelsForAgent = useCallback(async (targetAgent: "claude-code" | "codex" | "opencode", force = false) => {
+    if (cachedModels[targetAgent]?.length > 0 && !force) return
+
+    setModelsLoading(true)
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/chat/models?agent=${targetAgent}`)
+      if (res.ok) {
+        const data = await res.json()
+        setCachedModels((prev) => ({
+          ...prev,
+          [targetAgent]: data
+        }))
+      }
+    } catch (err) {
+      console.error(`Failed to prefetch models for ${targetAgent}:`, err)
+    } finally {
+      setModelsLoading(false)
+    }
+  }, [cachedModels])
+
+  useEffect(() => {
+    const prefetch = async () => {
+      const agents = ["claude-code", "codex", "opencode"] as const
+      await Promise.all(
+        agents.map(async (a) => {
+          try {
+            const res = await fetch(`http://127.0.0.1:3210/api/chat/models?agent=${a}`)
+            if (res.ok) {
+              const data = await res.json()
+              setCachedModels((prev) => ({
+                ...prev,
+                [a]: data
+              }))
+            }
+          } catch (e) {
+            console.error(`Prefetch fallback error for ${a}:`, e)
+          }
+        })
+      )
+    }
+    prefetch()
+  }, [])
+
+  useEffect(() => {
+    if (agentMenuOpen) {
+      fetchModelsForAgent(activeFetchAgent)
+    }
+  }, [agentMenuOpen, activeFetchAgent, fetchModelsForAgent])
+
+  useEffect(() => {
+    if (!agentMenuOpen) {
+      setHoveredAgent(null)
+    }
+  }, [agentMenuOpen])
+
   const currentSession = sessions.find((s) => s.id === sessionId)
   const currentTitle = currentSession?.title || (sessionId ? "未命名会话" : "新对话")
 
   const selectAgent = (a: "claude-code" | "codex" | "opencode") => {
     setAgent(a)
     setAgentMenuOpen(false)
+    setAgentModelMenuOpen(false)
     setPermissionMenuOpen(false)
     setModelMenuOpen(false)
+
+    const saved = agentSettings[a] || { model: "default", effort: "medium" }
+    setSessionConfig({
+      model: saved.model || "default",
+      effort: saved.effort || "medium"
+    })
   }
 
   // Load last used workspace id
@@ -247,6 +350,7 @@ export function App() {
       const sessionId = parts[parts.length - 1] || ""
       return `上下文就绪 (${sessionId.substring(0, 8)}) · 点击复制`
     }
+    return text
   }
 
   return (
@@ -309,6 +413,7 @@ export function App() {
         setPermissionMenuOpen(false)
         setModelMenuOpen(false)
         setAgentMenuOpen(false)
+        setAgentModelMenuOpen(false)
       }}>
         <ChatThread
           messages={messages}
@@ -377,6 +482,7 @@ export function App() {
               setPermissionMenuOpen(false)
               setModelMenuOpen(false)
               setAgentMenuOpen(false)
+              setAgentModelMenuOpen(false)
             }}
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={(e) => {
@@ -407,6 +513,7 @@ export function App() {
                   onClick={(e) => {
                     e.stopPropagation()
                     setAgentMenuOpen(!agentMenuOpen)
+                    setAgentModelMenuOpen(false)
                     setPermissionMenuOpen(false)
                     setModelMenuOpen(false)
                   }}
@@ -415,20 +522,25 @@ export function App() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       setAgentMenuOpen(!agentMenuOpen)
+                      setAgentModelMenuOpen(false)
                       setPermissionMenuOpen(false)
                       setModelMenuOpen(false)
                     }
                   }}
                 >
-                  <span>{agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : "OpenCode"}</span>
+                  <span>
+                    {agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : "OpenCode"}
+                  </span>
                   <ChevronDownIcon />
                 </div>
                 {agentMenuOpen && (
-                  <div className="agent-menu">
+                  <div className="agent-menu-container">
                     <div className="agent-menu-header">选择 Agent</div>
                     <div
-                      className="agent-menu-item"
-                      onClick={() => selectAgent("claude-code")}
+                      className={`agent-menu-item`}
+                      onClick={() => {
+                        selectAgent("claude-code")
+                      }}
                       role="option"
                       aria-selected={agent === "claude-code"}
                     >
@@ -441,8 +553,10 @@ export function App() {
                       )}
                     </div>
                     <div
-                      className="agent-menu-item"
-                      onClick={() => selectAgent("codex")}
+                      className={`agent-menu-item`}
+                      onClick={() => {
+                        selectAgent("codex")
+                      }}
                       role="option"
                       aria-selected={agent === "codex"}
                     >
@@ -455,8 +569,10 @@ export function App() {
                       )}
                     </div>
                     <div
-                      className="agent-menu-item"
-                      onClick={() => selectAgent("opencode")}
+                      className={`agent-menu-item`}
+                      onClick={() => {
+                        selectAgent("opencode")
+                      }}
                       role="option"
                       aria-selected={agent === "opencode"}
                     >
@@ -472,6 +588,75 @@ export function App() {
                 )}
               </div>
 
+              {/* 模型选择器 */}
+              <div className="agent-model-selector">
+                <div
+                  className={`agent-model-selector-trigger ${agentModelMenuOpen ? "open" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAgentModelMenuOpen(!agentModelMenuOpen)
+                    setAgentMenuOpen(false)
+                    setPermissionMenuOpen(false)
+                    setModelMenuOpen(false)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setAgentModelMenuOpen(!agentModelMenuOpen)
+                      setAgentMenuOpen(false)
+                      setPermissionMenuOpen(false)
+                      setModelMenuOpen(false)
+                    }
+                  }}
+                >
+                  <span>
+                    {model && model !== "default" ? model.split("/").pop() : "默认模型"}
+                  </span>
+                  <ChevronDownIcon />
+                </div>
+                {agentModelMenuOpen && (
+                  <div className="agent-model-menu">
+                    <div className="agent-model-menu-header">选择模型</div>
+                    {modelsLoading && (!cachedModels[agent] || cachedModels[agent].length === 0) ? (
+                      <div className="agent-models-loading-container">
+                        <div className="loading-spinner"></div>
+                        <span>加载模型中...</span>
+                      </div>
+                    ) : (
+                      <div className="agent-model-list">
+                        {(cachedModels[agent] || []).map((m) => {
+                          const isSelected = model === m.id || (m.id === "default" && model === "default")
+                          const slashIndex = m.name.indexOf("/")
+                          const prefix = slashIndex > -1 ? m.name.slice(0, slashIndex + 1) : ""
+                          const mainName = slashIndex > -1 ? m.name.slice(slashIndex + 1) : m.name
+
+                          return (
+                            <div
+                              key={m.id}
+                              className={`agent-model-item ${isSelected ? "selected" : ""}`}
+                              onClick={() => {
+                                setSessionConfig({ model: m.id })
+                                updateAgentSettings(agent, { model: m.id })
+                                setAgentModelMenuOpen(false)
+                              }}
+                            >
+                              <span className="agent-model-item-name" title={m.name}>
+                                {prefix && <span className="agent-model-prefix">{prefix}</span>}
+                                <span className="agent-model-main-name">{mainName}</span>
+                              </span>
+                              {isSelected && (
+                                <span className="agent-model-check"><CheckIcon /></span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* 权限级别选择器 */}
               <div className="permission-selector">
                 <div
@@ -480,6 +665,7 @@ export function App() {
                     e.stopPropagation()
                     setPermissionMenuOpen(!permissionMenuOpen)
                     setAgentMenuOpen(false)
+                    setAgentModelMenuOpen(false)
                     setModelMenuOpen(false)
                   }}
                   role="button"
@@ -489,6 +675,7 @@ export function App() {
                     if (e.key === "Enter" || e.key === " ") {
                       setPermissionMenuOpen(!permissionMenuOpen)
                       setAgentMenuOpen(false)
+                      setAgentModelMenuOpen(false)
                       setModelMenuOpen(false)
                     }
                   }}
@@ -582,6 +769,7 @@ export function App() {
                     e.stopPropagation()
                     setModelMenuOpen(!modelMenuOpen)
                     setAgentMenuOpen(false)
+                    setAgentModelMenuOpen(false)
                     setPermissionMenuOpen(false)
                   }}
                   role="button"
@@ -591,6 +779,7 @@ export function App() {
                     if (e.key === "Enter" || e.key === " ") {
                       setModelMenuOpen(!modelMenuOpen)
                       setAgentMenuOpen(false)
+                      setAgentModelMenuOpen(false)
                       setPermissionMenuOpen(false)
                     }
                   }}
@@ -608,19 +797,19 @@ export function App() {
                   <div className="model-menu">
                     <div className="model-menu-section reasoning-section">
                       <div className="model-menu-header">推理</div>
-                      <div className={`model-option ${effort === "low" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "low" }); setModelMenuOpen(false); }}>
+                      <div className={`model-option ${effort === "low" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "low" }); updateAgentSettings(agent, { effort: "low" }); setModelMenuOpen(false); }}>
                         <span>低</span>
                         {effort === "low" && <span className="item-check"><CheckIcon /></span>}
                       </div>
-                      <div className={`model-option ${effort === "medium" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "medium" }); setModelMenuOpen(false); }}>
+                      <div className={`model-option ${effort === "medium" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "medium" }); updateAgentSettings(agent, { effort: "medium" }); setModelMenuOpen(false); }}>
                         <span>中</span>
                         {effort === "medium" && <span className="item-check"><CheckIcon /></span>}
                       </div>
-                      <div className={`model-option ${effort === "high" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "high" }); setModelMenuOpen(false); }}>
+                      <div className={`model-option ${effort === "high" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "high" }); updateAgentSettings(agent, { effort: "high" }); setModelMenuOpen(false); }}>
                         <span>高</span>
                         {effort === "high" && <span className="item-check"><CheckIcon /></span>}
                       </div>
-                      <div className={`model-option ${(effort === "xhigh" || effort === "max") ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "xhigh" }); setModelMenuOpen(false); }}>
+                      <div className={`model-option ${(effort === "xhigh" || effort === "max") ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "xhigh" }); updateAgentSettings(agent, { effort: "xhigh" }); setModelMenuOpen(false); }}>
                         <span>超高</span>
                         {(effort === "xhigh" || effort === "max") && <span className="item-check"><CheckIcon /></span>}
                       </div>

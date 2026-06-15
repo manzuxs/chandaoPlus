@@ -191,11 +191,11 @@ export function registerChatRoutes(app: any, deps: any) {
 
       // 默认情况或 agent === "claude-code"
       res.json([
-        { id: "default", name: "默认模型 (Sonnet)", hasReasoning: true },
-        { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", hasReasoning: true },
-        { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", hasReasoning: false },
-        { id: "claude-3-5-haiku", name: "Claude 3.5 Haiku", hasReasoning: false },
-        { id: "claude-3-opus", name: "Claude 3 Opus", hasReasoning: false }
+        { id: "default", name: "默认模型 (Sonnet 4.6)", hasReasoning: true },
+        { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", hasReasoning: true },
+        { id: "claude-opus-4-8", name: "Claude Opus 4.8", hasReasoning: true },
+        { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", hasReasoning: false },
+        { id: "claude-fable-5", name: "Claude Fable 5", hasReasoning: true }
       ])
     } catch (err: any) {
       res.status(500).json({ error: err.message })

@@ -118,6 +118,11 @@ export const claudeCodeAdapter: AgentAdapter = {
       args.push("--effort", request.effort)
     }
 
+    // 拼入前端指定的 model 参数
+    if (request.model && request.model !== "default") {
+      args.push("--model", request.model)
+    }
+
     // 拼入前端指定的权限审批标志
     if (request.permissionMode && request.permissionMode !== "custom") {
       if (request.permissionMode === "ask") {

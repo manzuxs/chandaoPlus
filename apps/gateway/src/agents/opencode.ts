@@ -93,8 +93,12 @@ export const opencodeAdapter: AgentAdapter = {
       args.push("--dangerously-skip-permissions")
     }
 
+    let sessionIdArg = ""
     if (request.sessionId) {
-      args.push("--session", request.sessionId)
+      sessionIdArg = request.sessionId.startsWith("ses")
+        ? request.sessionId
+        : `ses_${request.sessionId}`
+      args.push("--session", sessionIdArg)
     }
 
     if (request.model && request.model !== "default") {
@@ -113,7 +117,7 @@ export const opencodeAdapter: AgentAdapter = {
       
       if (isSession && isSessionNotFoundError) {
         console.warn(`[OpenCode] Session ${request.sessionId} not found. Falling back without session parameter.`)
-        const fallbackArgs = args.filter(a => a !== "--session" && a !== request.sessionId)
+        const fallbackArgs = args.filter(a => a !== "--session" && a !== sessionIdArg)
         await streamProcessOpencode(bin, fallbackArgs, workspace.rootPath, prompt, onChunk)
       } else {
         throw err

@@ -271,6 +271,7 @@ export function useChatSession(workspaceId: string) {
       return {
         ...prev,
         [targetKey]: {
+          ...state,
           messages: [...state.messages, userMsg, { role: "assistant", content: "" }],
           sending: true,
           statusText: "正在捕获页面内容..."
