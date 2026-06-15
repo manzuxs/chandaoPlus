@@ -107,6 +107,10 @@
   background-color: var(--hairline-soft);
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-sans);
   font-size: 14px;
@@ -245,6 +249,7 @@ button {
 .chat-thread {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
@@ -356,6 +361,8 @@ button {
   font-size: 14px;
   line-height: 1.5;
   position: relative;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .message-bubble.user {
@@ -626,6 +633,9 @@ button {
 /* Markdown Content */
 .message-content {
   word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .message-content h1,
@@ -650,6 +660,7 @@ button {
   border-radius: var(--radius-xs);
   font-family: "SF Mono", "JetBrains Mono", Consolas, monospace;
   font-size: 0.9em;
+  word-break: break-all;
 }
 
 .message-content pre {
@@ -678,16 +689,22 @@ button {
   margin-bottom: var(--space-xxs);
 }
 
+.message-content .table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: var(--space-md) 0;
+  border-radius: var(--radius-md);
+  border: var(--space-hair) solid var(--hairline);
+}
+
 .message-content table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  margin: var(--space-md) 0;
   font-size: 13px;
-  border: var(--space-hair) solid var(--hairline);
-  border-radius: var(--radius-md);
   overflow: hidden;
   background-color: var(--canvas);
+  table-layout: fixed;
 }
 
 .message-content th,
@@ -696,6 +713,8 @@ button {
   text-align: left;
   line-height: 1.5;
   border-bottom: var(--space-hair) solid var(--hairline);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .message-content tr:last-child td {

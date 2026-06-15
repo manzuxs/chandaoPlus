@@ -82,7 +82,7 @@ function renderMarkdown(md: string): string {
       }
       if (inTable) {
         inTable = false
-        lines[i] = "</tbody></table><hr />"
+        lines[i] = "</tbody></table></div><hr />"
       }
       continue
     }
@@ -107,7 +107,7 @@ function renderMarkdown(md: string): string {
         const cells = line.split("|").slice(1, -1).map((c) => c.trim())
         if (!inTable) {
           inTable = true
-          lines[i] = "<table><thead><tr>" + cells.map((c) => `<th>${c}</th>`).join("") + "</tr></thead><tbody>"
+          lines[i] = '<div class="table-wrapper"><table><thead><tr>' + cells.map((c) => `<th>${c}</th>`).join("") + "</tr></thead><tbody>"
         } else {
           if (cells.every((c) => /^:-*:$/.test(c) || /^-+$/.test(c))) {
             lines[i] = ""
@@ -118,7 +118,7 @@ function renderMarkdown(md: string): string {
       } else {
         if (inTable) {
           inTable = false
-          lines[i] = "</tbody></table>" + lines[i]
+          lines[i] = "</tbody></table></div>" + lines[i]
         }
       }
 
@@ -136,7 +136,7 @@ function renderMarkdown(md: string): string {
 
   let suffix = ""
   if (inList) suffix += "</ul>"
-  if (inTable) suffix += "</tbody></table>"
+  if (inTable) suffix += "</tbody></table></div>"
 
   html = lines.join("\n") + suffix
   return html
