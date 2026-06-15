@@ -11,6 +11,7 @@ interface SessionRecord {
   contextBundleDirs?: string[];
   createdAt: string;
   updatedAt: string;
+  codexThreadId?: string;
 }
 
 export class SessionStore {
@@ -98,6 +99,17 @@ export class SessionStore {
       const record = records.find((r) => r.id === sessionId);
       if (!record) throw new Error(`Session ${sessionId} not found`);
       record.title = title;
+      record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async updateCodexThreadId(sessionId: string, codexThreadId: string): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      record.codexThreadId = codexThreadId;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
     });

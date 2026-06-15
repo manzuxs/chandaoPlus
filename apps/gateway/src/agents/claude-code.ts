@@ -33,7 +33,7 @@ function streamProcess(
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
-  async run({ workspace, bundleDir, request, skill, onChunk }: AgentRunOptions) {
+  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore }: AgentRunOptions) {
     const prompt = buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
@@ -46,6 +46,16 @@ export const claudeCodeAdapter: AgentAdapter = {
     const bin = process.env.CLAUDE_BIN || CLAUDE_BIN
     const rawArgs = process.env.CLAUDE_ARGS || CLAUDE_ARGS
     const args = rawArgs.split(/\s+/).filter(Boolean)
+
+    if (request.sessionId && sessionStore) {
+      const existing = await sessionStore.get(request.sessionId)
+      const isFirstQuery = !existing || !existing.messages || existing.messages.length <= 1
+      if (isFirstQuery) {
+        args.push("--session-id", request.sessionId)
+      } else {
+        args.push("--resume", request.sessionId)
+      }
+    }
 
     await streamProcess(bin, args, workspace.rootPath, prompt, (text) => {
       onChunk({ type: "text", content: text })

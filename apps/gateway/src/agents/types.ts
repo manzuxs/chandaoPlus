@@ -6,6 +6,7 @@ export interface AgentRunOptions {
   bundleDir: string
   skill?: Skill
   onChunk: (chunk: ChatStreamChunk) => void
+  sessionStore: any
 }
 
 export interface AgentAdapter {

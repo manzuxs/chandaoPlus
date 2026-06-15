@@ -76,6 +76,7 @@ export function registerChatRoutes(app: any, deps: any) {
           workspace,
           bundleDir,
           skill,
+          sessionStore: deps.sessionStore,
           onChunk: (chunk: any) => {
             if (chunk.type === "text") {
               assistantContent += chunk.content
