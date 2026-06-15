@@ -5,6 +5,7 @@ describe("zentao-detail", () => {
   it("recognizes both legacy and query-string bug detail URLs", () => {
     expect(isZentaoBugDetailUrl("https://zentao.local/bug-view-123.html")).toBe(true)
     expect(isZentaoBugDetailUrl("https://zentao.example.com/index.php?m=bug&f=view&bugID=10765")).toBe(true)
+    expect(isZentaoBugDetailUrl("https://zentao.example.com/index.php?m=bug&f=view&id=10841")).toBe(true)
     expect(isZentaoBugDetailUrl("https://zentao.local/index.php?m=product&f=view&id=1")).toBe(false)
   })
 

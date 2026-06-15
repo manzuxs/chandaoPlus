@@ -49,7 +49,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     }
   }
 
-  const bugId = parsedUrl.searchParams.get("bugID") || parsedUrl.searchParams.get("bugId") || currentUrl.match(/bug-view-(\d+)/i)?.[1] || ""
+  const bugId = parsedUrl.searchParams.get("bugID") || parsedUrl.searchParams.get("bugId") || parsedUrl.searchParams.get("id") || currentUrl.match(/bug-view-(\d+)/i)?.[1] || ""
   const isBugDetail =
     /bug-view-\d+/i.test(currentUrl) ||
     (parsedUrl.searchParams.get("m") === "bug" && parsedUrl.searchParams.get("f") === "view" && Boolean(bugId))

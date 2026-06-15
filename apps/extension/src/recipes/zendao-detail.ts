@@ -39,7 +39,7 @@ async function parseDocument(html: string, baseUrl: string): Promise<Document> {
 function getBugIdFromUrl(url: string): string {
   try {
     const parsed = new URL(url)
-    const bugId = parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId")
+    const bugId = parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId") || parsed.searchParams.get("id")
     if (bugId) return bugId
   } catch {}
 
@@ -199,7 +199,7 @@ export function isZentaoBugDetailUrl(url: string): boolean {
     const parsed = new URL(url)
     return parsed.searchParams.get("m") === "bug" &&
       parsed.searchParams.get("f") === "view" &&
-      Boolean(parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId"))
+      Boolean(parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId") || parsed.searchParams.get("id"))
   } catch {
     return false
   }

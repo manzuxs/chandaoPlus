@@ -260,14 +260,14 @@ export function useChatSession(workspaceId: string) {
       return {
         ...prev,
         [targetKey]: {
-          messages: [...state.messages, userMsg],
+          messages: [...state.messages, userMsg, { role: "assistant", content: "" }],
           sending: true,
           statusText: "正在捕获页面内容..."
         }
       }
     })
 
-    let isAssistantMsgAdded = false
+    let isAssistantMsgAdded = true
     let assistantMsg: ChatMessage = { role: "assistant", content: "" }
 
     try {

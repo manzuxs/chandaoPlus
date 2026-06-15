@@ -27,6 +27,7 @@ export function registerChatRoutes(app: any, deps: any) {
       } else {
         const session = await deps.sessionStore.create(request.workspaceId)
         sessionId = session.id
+        request.sessionId = sessionId
         const firstUserMsg = request.messages.find((m: { role: string }) => m.role === "user")
         if (firstUserMsg) {
           const title = firstUserMsg.content.replace(/\n/g, " ").slice(0, 50)

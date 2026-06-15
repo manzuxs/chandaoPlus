@@ -46,6 +46,20 @@ const HistoryIcon = () => (
   </svg>
 )
 
+const ClockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+
+const renderSkillIcon = (skill: Skill) => {
+  if (skill.id === "estimate") {
+    return <ClockIcon />
+  }
+  return <BoltIcon />
+}
+
 const XIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <line x1="18" y1="6" x2="6" y2="18" />
@@ -327,7 +341,7 @@ export function App() {
                   className="slash-menu-item"
                   onClick={() => selectSlashCommand(skill)}
                 >
-                  <span className="slash-menu-item-icon">{skill.icon}</span>
+                  <span className="slash-menu-item-icon">{renderSkillIcon(skill)}</span>
                   <span className="slash-menu-item-name">{skill.name}</span>
                   <span className="slash-menu-item-desc">/{skill.id}</span>
                 </div>
@@ -336,7 +350,7 @@ export function App() {
           )}
           {selectedSkill && (
             <div className="input-skill-badge">
-              <span className="skill-badge-icon">{selectedSkill.icon}</span>
+              <span className="skill-badge-icon">{renderSkillIcon(selectedSkill)}</span>
               <span className="skill-badge-name">{selectedSkill.name}</span>
               <button
                 type="button"

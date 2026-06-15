@@ -44,12 +44,7 @@ function streamProcessCodex(
     })
 
     child.stderr.on("data", (chunk) => {
-      const text = chunk.toString()
-      if (text.toLowerCase().includes("error:")) {
-        onChunk({ type: "error", content: text.trim() })
-      } else {
-        onChunk({ type: "text", content: text })
-      }
+      console.error(`[Codex Stderr] ${chunk.toString().trim()}`)
     })
 
     child.on("close", (code) => {
