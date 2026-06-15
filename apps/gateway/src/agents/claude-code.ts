@@ -17,13 +17,19 @@ function streamProcess(
     child.stdin.end()
 
     child.stdout.on("data", (chunk) => onText(chunk.toString()))
-    child.stderr.on("data", (chunk) => onText(chunk.toString()))
+    
+    let stderrBuffer = ""
+    child.stderr.on("data", (chunk) => {
+      const text = chunk.toString()
+      stderrBuffer += text
+      onText(text)
+    })
 
     child.on("close", (code) => {
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`Process exited with code ${code}`))
+        reject(new Error(`Process exited with code ${code}. Stderr: ${stderrBuffer}`))
       }
     })
 
@@ -73,8 +79,31 @@ export const claudeCodeAdapter: AgentAdapter = {
       }
     }
 
-    await streamProcess(bin, args, workspace.rootPath, prompt, (text) => {
-      onChunk({ type: "text", content: text })
-    })
+    try {
+      await streamProcess(bin, args, workspace.rootPath, prompt, (text) => {
+        onChunk({ type: "text", content: text })
+      })
+    } catch (err: any) {
+      const isResume = args.includes("--resume")
+      const isSessionNotFoundError = err.message.includes("No conversation found")
+      
+      if (isResume && isSessionNotFoundError) {
+        console.warn(`[Claude Code] Session ${request.sessionId} not found on disk. Falling back to init mode.`)
+        // 降级重新运行：将 --resume 替换为 --session-id，新启动会话
+        const fallbackArgs: string[] = []
+        for (let i = 0; i < args.length; i++) {
+          if (args[i] === "--resume") {
+            fallbackArgs.push("--session-id")
+          } else {
+            fallbackArgs.push(args[i])
+          }
+        }
+        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, (text) => {
+          onChunk({ type: "text", content: text })
+        })
+      } else {
+        throw err
+      }
+    }
   }
 }

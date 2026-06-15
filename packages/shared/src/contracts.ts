@@ -53,6 +53,9 @@ export const SessionSchema = z.object({
   messages: z.array(ChatMessageSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  model: z.string().optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
 })
 
 export const SessionListItemSchema = z.object({

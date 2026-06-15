@@ -48,14 +48,18 @@ export function useChatSession(workspaceId: string) {
   // Restore session and load history when workspaceId changes
   useEffect(() => {
     if (!workspaceId) return
+    let active = true
+
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(`session_${workspaceId}`).then((result: Record<string, any>) => {
+        if (!active) return
         const stored = result[`session_${workspaceId}`]
         if (stored) {
           setSessionId(stored)
           fetch(`http://127.0.0.1:3210/api/sessions/${stored}`)
             .then((r) => r.json())
             .then((session) => {
+              if (!active) return
               if (session.messages) {
                 setSessionStates((prev) => ({
                   ...prev,
@@ -75,6 +79,10 @@ export function useChatSession(workspaceId: string) {
           setSessionId(null)
         }
       })
+    }
+
+    return () => {
+      active = false
     }
   }, [workspaceId])
 
@@ -197,7 +205,10 @@ export function useChatSession(workspaceId: string) {
       delete next.temp
       return next
     })
-  }, [])
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
+      Promise.resolve(chrome.storage.local.remove(`session_${workspaceId}`)).catch(() => {})
+    }
+  }, [workspaceId])
 
   const setSessionConfig = useCallback((config: {
     model?: string
@@ -336,13 +347,16 @@ export function useChatSession(workspaceId: string) {
                 activeId = newId
                 setSessionId(newId)
                 setSessionStates((prev) => {
-                  const tempState = prev.temp || { messages: [], sending: true, statusText: "" }
+                  const tempState = prev.temp || { messages: [], sending: true, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
                   const next = { ...prev }
                   delete next.temp
                   next[newId] = {
                     messages: tempState.messages,
                     sending: true,
-                    statusText: tempState.statusText
+                    statusText: tempState.statusText,
+                    model: tempState.model,
+                    effort: tempState.effort,
+                    permissionMode: tempState.permissionMode
                   }
                   return next
                 })

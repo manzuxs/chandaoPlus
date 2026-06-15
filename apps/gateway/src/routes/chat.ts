@@ -20,12 +20,23 @@ export function registerChatRoutes(app: any, deps: any) {
       let sessionId = request.sessionId
       if (sessionId) {
         const existing = await deps.sessionStore.get(sessionId)
-        if (!existing) {
-          res.status(404).json({ error: "Session not found" })
+        if (!existing || existing.workspaceId !== request.workspaceId) {
+          res.status(404).json({ error: "Session not found or workspace mismatch" })
           return
         }
+        // 续问时同步更新配置参数到 SessionStore
+        await deps.sessionStore.updateConfig(sessionId, {
+          model: request.model,
+          effort: request.effort,
+          permissionMode: request.permissionMode
+        })
       } else {
-        const session = await deps.sessionStore.create(request.workspaceId)
+        // 首问时传入当前配置参数进行持久化
+        const session = await deps.sessionStore.create(request.workspaceId, undefined, {
+          model: request.model,
+          effort: request.effort,
+          permissionMode: request.permissionMode
+        })
         sessionId = session.id
         request.sessionId = sessionId
         const firstUserMsg = request.messages.find((m: { role: string }) => m.role === "user")
@@ -59,11 +70,14 @@ export function registerChatRoutes(app: any, deps: any) {
         return
       }
 
+      let completed = false
+      let hasPersisted = false
       let assistantContent = ""
 
       // 流中断时持久化已接收的部分助手消息
       req.on("close", () => {
-        if (assistantContent) {
+        if (!completed && !hasPersisted && assistantContent) {
+          hasPersisted = true
           deps.sessionStore.appendMessage(sessionId!, {
             role: "assistant",
             content: assistantContent + "\n\n[连接中断]",
@@ -87,13 +101,16 @@ export function registerChatRoutes(app: any, deps: any) {
           }
         })
         res.write(`data: ${JSON.stringify({ type: "done", content: "" })}\n\n`)
+        completed = true
       } catch (err: any) {
+        completed = true
         console.error("Agent process execution error:", err)
         res.write(`data: ${JSON.stringify({ type: "error", content: err.message })}\n\n`)
       }
 
       // 持久化助手回复
-      if (assistantContent) {
+      if (completed && !hasPersisted && assistantContent) {
+        hasPersisted = true
         await deps.sessionStore.appendMessage(sessionId, {
           role: "assistant",
           content: assistantContent,
@@ -131,6 +148,7 @@ export function registerChatRoutes(app: any, deps: any) {
             hasReasoning: !!(m.supported_reasoning_levels && m.supported_reasoning_levels.length > 0) || !!m.hasReasoning
           }))
           res.json(mapped)
+          return
         } catch (err: any) {
           console.error("Failed to run codex debug models:", err)
           res.json([
@@ -140,15 +158,18 @@ export function registerChatRoutes(app: any, deps: any) {
             { id: "o1", name: "o1", hasReasoning: true },
             { id: "o3-mini", name: "o3-mini", hasReasoning: true }
           ])
+          return
         }
-        res.json([
-          { id: "default", name: "默认模型 (Sonnet)", hasReasoning: true },
-          { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", hasReasoning: true },
-          { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", hasReasoning: false },
-          { id: "claude-3-5-haiku", name: "Claude 3.5 Haiku", hasReasoning: false },
-          { id: "claude-3-opus", name: "Claude 3 Opus", hasReasoning: false }
-        ])
       }
+
+      // 默认情况或 agent === "claude-code"
+      res.json([
+        { id: "default", name: "默认模型 (Sonnet)", hasReasoning: true },
+        { id: "claude-3-7-sonnet", name: "Claude 3.7 Sonnet", hasReasoning: true },
+        { id: "claude-3-5-sonnet", name: "Claude 3.5 Sonnet", hasReasoning: false },
+        { id: "claude-3-5-haiku", name: "Claude 3.5 Haiku", hasReasoning: false },
+        { id: "claude-3-opus", name: "Claude 3 Opus", hasReasoning: false }
+      ])
     } catch (err: any) {
       res.status(500).json({ error: err.message })
     }

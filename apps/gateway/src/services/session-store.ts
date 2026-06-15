@@ -12,6 +12,9 @@ interface SessionRecord {
   createdAt: string;
   updatedAt: string;
   codexThreadId?: string;
+  model?: string;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  permissionMode?: "ask" | "auto" | "full" | "custom";
 }
 
 export class SessionStore {
@@ -42,7 +45,15 @@ export class SessionStore {
     await writeFile(this.filePath, JSON.stringify(records, null, 2), "utf-8");
   }
 
-  async create(workspaceId: string, title?: string): Promise<Session> {
+  async create(
+    workspaceId: string,
+    title?: string,
+    config?: {
+      model?: string;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      permissionMode?: "ask" | "auto" | "full" | "custom";
+    }
+  ): Promise<Session> {
     return this.withLock(async () => {
       const records = await this.readAll();
       const now = new Date().toISOString();
@@ -53,6 +64,9 @@ export class SessionStore {
         messages: [],
         createdAt: now,
         updatedAt: now,
+        model: config?.model,
+        effort: config?.effort,
+        permissionMode: config?.permissionMode,
       };
       records.push(record);
       await this.writeAll(records);
@@ -138,6 +152,27 @@ export class SessionStore {
       if (!record) throw new Error(`Session ${sessionId} not found`);
       if (!record.contextBundleDirs) record.contextBundleDirs = [];
       record.contextBundleDirs.push(bundleDir);
+      record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async updateConfig(
+    sessionId: string,
+    config: {
+      model?: string;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      permissionMode?: "ask" | "auto" | "full" | "custom";
+    }
+  ): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      if (config.model !== undefined) record.model = config.model;
+      if (config.effort !== undefined) record.effort = config.effort;
+      if (config.permissionMode !== undefined) record.permissionMode = config.permissionMode;
+      record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
     });
   }
