@@ -135,8 +135,26 @@ body {
   background-color: var(--canvas);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   flex-shrink: 0;
+  border-bottom: var(--space-hair) solid var(--hairline);
+}
+
+.app-header-left {
+  min-width: 0;
+  flex: 1;
+  margin-right: var(--space-md);
+}
+
+.current-session-title {
+  font-size: 14px;
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 180px;
 }
 
 .app-header-right {
@@ -510,9 +528,8 @@ button {
 .history-session-item-title {
   font-size: 13px;
   font-weight: var(--weight-bold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .history-session-item-time {

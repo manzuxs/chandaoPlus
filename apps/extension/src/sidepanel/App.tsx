@@ -137,6 +137,9 @@ export function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
 
+  const currentSession = sessions.find((s) => s.id === sessionId)
+  const currentTitle = currentSession?.title || (sessionId ? "未命名会话" : "新对话")
+
   const selectAgent = (a: "claude-code" | "codex") => {
     setAgent(a)
     setAgentMenuOpen(false)
@@ -249,6 +252,9 @@ export function App() {
   return (
     <div className="app-container">
       <header className="app-header">
+        <div className="app-header-left" title={currentTitle}>
+          <span className="current-session-title">{currentTitle}</span>
+        </div>
         <div className="app-header-right">
           <WorkspaceSwitcher
             value={workspaceId}
