@@ -91,7 +91,7 @@ export const codexAdapter: AgentAdapter = {
     
     // 拼入前端指定的 effort 思考参数
     if (request.effort) {
-      options.push("-c", `model_options.reasoning_effort=${request.effort}`)
+      options.push("-c", `model_reasoning_effort=${request.effort}`)
     }
 
     if (request.permissionMode === "full") {
