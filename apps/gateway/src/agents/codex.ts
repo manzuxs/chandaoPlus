@@ -32,6 +32,8 @@ function streamProcessCodex(
             onThreadStarted(event.thread_id)
           } else if (event.type === "text" && event.content) {
             onChunk({ type: "text", content: event.content })
+          } else if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
+            onChunk({ type: "text", content: event.item.text })
           } else if (event.type === "error" && event.message) {
             onChunk({ type: "error", content: event.message })
           } else if (event.type === "turn.failed" && event.error?.message) {

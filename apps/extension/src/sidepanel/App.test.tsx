@@ -504,6 +504,125 @@ describe("App", () => {
     expect(screen.queryByText("B-part1")).toBeNull()
   })
 
+  it("keeps a follow-up user message when stream meta repeats the current session id", async () => {
+    let controller: ReadableStreamDefaultController | null = null
+    const stream = new ReadableStream({
+      start(c) {
+        controller = c
+      }
+    })
+
+    const customFetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }])
+        })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: "session-1",
+              workspaceId: "ws-1",
+              title: "已有会话",
+              messageCount: 2,
+              lastMessage: "旧回复",
+              createdAt: "2026-06-15T03:00:00Z",
+              updatedAt: "2026-06-15T03:00:00Z"
+            }
+          ])
+        })
+      }
+      if (url.includes("/api/sessions/session-1")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: "session-1",
+            workspaceId: "ws-1",
+            messages: [
+              { role: "user", content: "旧问题" },
+              { role: "assistant", content: "旧回复" }
+            ]
+          })
+        })
+      }
+      if (url.includes("/api/chat/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: stream
+        })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+
+    const storageGetMock = vi.fn().mockImplementation((keys: any, callback?: any) => {
+      const result: Record<string, any> = {}
+      if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) {
+        result.lastWorkspaceId = "ws-1"
+      }
+      if (keys === "session_ws-1") {
+        result["session_ws-1"] = "session-1"
+      }
+      if (typeof callback === "function") {
+        callback(result)
+      }
+      return Promise.resolve(result)
+    })
+
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn().mockImplementation((message: { type: string }, callback: (response: any) => void) => {
+          if (message.type === "CAPTURE_ACTIVE_TAB") {
+            callback({
+              url: "https://zentao.local/bug-view-1.html",
+              title: "BUG #1",
+              markdown: "# BUG #1\n\n页面白屏",
+              images: [],
+              metadata: {}
+            })
+          }
+        }),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: storageGetMock,
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("旧回复")
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "开始修复" } })
+    fireEvent.click(screen.getByRole("button", { name: "发送" }))
+
+    await screen.findByText("开始修复")
+
+    const encoder = new TextEncoder()
+    expect(controller).toBeTruthy()
+    controller!.enqueue(encoder.encode('data: {"type": "meta", "sessionId": "session-1"}\n'))
+    controller!.enqueue(encoder.encode('data: {"type": "text", "content": "继续输出"}\n'))
+    controller!.close()
+
+    await screen.findByText("继续输出")
+    expect(screen.getByText("开始修复")).toBeTruthy()
+  })
+
   it("renders effort values dynamically through a single-level card", async () => {
     render(<App />)
     

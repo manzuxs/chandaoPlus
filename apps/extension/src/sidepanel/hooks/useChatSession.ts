@@ -343,20 +343,23 @@ export function useChatSession(workspaceId: string) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
               if (chunk.type === "meta" && chunk.sessionId) {
+                const sourceKey = activeId || "temp"
                 const newId = chunk.sessionId
                 activeId = newId
                 setSessionId(newId)
                 setSessionStates((prev) => {
-                  const tempState = prev.temp || { messages: [], sending: true, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
+                  const sourceState = prev[sourceKey] || { messages: [], sending: true, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
                   const next = { ...prev }
-                  delete next.temp
+                  if (sourceKey === "temp") {
+                    delete next.temp
+                  }
                   next[newId] = {
-                    messages: tempState.messages,
+                    messages: sourceState.messages,
                     sending: true,
-                    statusText: tempState.statusText,
-                    model: tempState.model,
-                    effort: tempState.effort,
-                    permissionMode: tempState.permissionMode
+                    statusText: sourceState.statusText,
+                    model: sourceState.model,
+                    effort: sourceState.effort,
+                    permissionMode: sourceState.permissionMode
                   }
                   return next
                 })
