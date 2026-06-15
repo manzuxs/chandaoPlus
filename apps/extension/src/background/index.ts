@@ -304,16 +304,31 @@ async function captureActiveTabPage(chromeApi = chrome): Promise<PageCapture> {
     throw new Error("No active tab found")
   }
 
-  if (chromeApi.scripting?.executeScript) {
-    const injected = await chromeApi.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      func: captureZentaoBugDetailFromLiveDom
-    })
-    const liveCapture = injected?.find((item: { result?: PageCapture | null }) => Boolean(item.result))?.result
-    if (liveCapture) return liveCapture
+  try {
+    if (chromeApi.scripting?.executeScript) {
+      const injected = await chromeApi.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        func: captureZentaoBugDetailFromLiveDom
+      })
+      const liveCapture = injected?.find((item: { result?: PageCapture | null }) => Boolean(item.result))?.result
+      if (liveCapture) return liveCapture
+    }
+  } catch (err) {
+    console.warn("Execute script failed, trying tab message:", err)
   }
 
-  return chromeApi.tabs.sendMessage(tab.id, { type: "CAPTURE_CURRENT_PAGE" })
+  try {
+    return await chromeApi.tabs.sendMessage(tab.id, { type: "CAPTURE_CURRENT_PAGE" })
+  } catch (err: any) {
+    console.warn("Message sending failed, using tab fallback:", err)
+    return {
+      url: tab.url || "",
+      title: tab.title || "未知页面",
+      markdown: `# 页面内容捕获失败\n无法读取当前页面的 DOM 内容 (错误: ${err.message})。\n建议刷新页面或者确保当前页面已完全加载后再试。`,
+      images: [],
+      metadata: { error: "Receiving end does not exist" }
+    }
+  }
 }
 
 export async function runChatFromActiveTab({

@@ -832,23 +832,15 @@ button {
   gap: var(--space-xxs);
   align-self: flex-start;
   padding: 4px 8px;
-  background-color: #f0f7ff;
-  border: 1px solid #cce3ff;
+  background-color: var(--surface-soft);
+  border: var(--space-hair) solid var(--hairline);
   border-radius: var(--radius-sm);
-  color: #0969da;
+  color: var(--ink);
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: var(--weight-link);
+  font-weight: var(--weight-body-medium);
   margin-bottom: var(--space-xxs);
   user-select: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  .input-skill-badge {
-    background-color: #0f2038;
-    border-color: #1a3a60;
-    color: #58a6ff;
-  }
 }
 
 .skill-badge-icon {
@@ -870,8 +862,8 @@ button {
   padding: 0;
   margin-left: 2px;
   cursor: pointer;
-  color: inherit;
-  opacity: 0.6;
+  color: var(--ink);
+  opacity: 0.5;
   width: 14px;
   height: 14px;
   border-radius: var(--radius-xs);
@@ -879,19 +871,13 @@ button {
 }
 
 .skill-badge-close svg {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
 }
 
 .skill-badge-close:hover {
-  opacity: 1;
-  background-color: rgba(9, 105, 218, 0.1);
-}
-
-@media (prefers-color-scheme: dark) {
-  .skill-badge-close:hover {
-    background-color: rgba(88, 166, 255, 0.15);
-  }
+  opacity: 0.9;
+  background-color: var(--hairline);
 }
 
 /* Toolbar */
