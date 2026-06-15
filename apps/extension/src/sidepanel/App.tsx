@@ -39,6 +39,26 @@ const BoltIcon = () => (
   </svg>
 )
 
+const HistoryIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+)
+
+function formatSessionTime(iso: string): string {
+  return new Date(iso).toLocaleString("zh-CN", {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+  })
+}
+
 export function App() {
   const [workspaceId, setWorkspaceId] = useState<string>("")
   const [command, setCommand] = useState<ChatCommand>("estimate")
@@ -46,6 +66,7 @@ export function App() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [input, setInput] = useState("")
   const [showSkillManager, setShowSkillManager] = useState(false)
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
   const [copiedStatus, setCopiedStatus] = useState(false)
   const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
@@ -183,20 +204,16 @@ export function App() {
           >
             {pagePreviewCopied ? <CheckIcon /> : <CopyIcon />}
           </button>
-          {sessionId && (
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={newSession}
-              title="新建会话"
-              aria-label="新建会话"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
-          )}
+
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={() => setShowHistoryDrawer(true)}
+            title="历史会话"
+            aria-label="历史会话"
+          >
+            <HistoryIcon />
+          </button>
           <button
             type="button"
             className="btn-icon"
@@ -222,9 +239,6 @@ export function App() {
         <ChatThread
           messages={messages}
           skills={skills}
-          sessions={sessions}
-          activeSessionId={sessionId}
-          onSwitchSession={handleSwitchSession}
           onSelectSkill={(skill) => {
             setCommand(skill.id)
             setInput(skill.promptTemplate.split("\n")[0] || skill.name)
@@ -373,6 +387,79 @@ export function App() {
           </div>
         </div>
       </footer>
+
+      {showHistoryDrawer && (
+        <>
+          <div className="history-overlay" onClick={() => setShowHistoryDrawer(false)} />
+          <div className="history-drawer">
+            <div className="history-drawer-header">
+              <div>
+                <h3>历史会话</h3>
+                <p>共 {sessions.length} 个历史会话</p>
+              </div>
+              <button type="button" className="btn-icon" onClick={() => setShowHistoryDrawer(false)} aria-label="关闭">
+                <XIcon />
+              </button>
+            </div>
+            <div className="history-drawer-body">
+              {sessionId && (
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-primary"
+                  style={{ width: "100%", justifyContent: "center", marginBottom: "var(--space-md)" }}
+                  onClick={() => {
+                    newSession();
+                    setShowHistoryDrawer(false);
+                  }}
+                >
+                  + 新建会话
+                </button>
+              )}
+              <div className="history-session-list">
+                {sessions.map((s) => {
+                  const isActive = s.id === sessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`history-session-item ${isActive ? "active" : ""}`}
+                      onClick={() => {
+                        loadSession(s.id);
+                        setShowHistoryDrawer(false);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          loadSession(s.id);
+                          setShowHistoryDrawer(false);
+                        }
+                      }}
+                    >
+                      <div className="history-session-item-top">
+                        <span className="history-session-item-title">
+                          {s.title || s.id.slice(0, 8)}
+                        </span>
+                        <span className="history-session-item-time">
+                          {formatSessionTime(s.updatedAt)}
+                        </span>
+                      </div>
+                      <div className="history-session-item-meta">
+                        <span className="history-session-item-preview">
+                          {s.messageCount} 条消息{s.lastMessage ? ` · ${s.lastMessage}` : ""}
+                        </span>
+                        {isActive && <span className="history-session-item-current">当前</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {sessions.length === 0 && (
+                  <div className="empty-list-text">暂无历史会话</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

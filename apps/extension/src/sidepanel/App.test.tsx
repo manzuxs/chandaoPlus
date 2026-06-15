@@ -91,10 +91,10 @@ describe("App", () => {
   it("requires workspace selection before sending", async () => {
     render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    await screen.findByText("⏱️ 评估工期与修复方案")
+    await screen.findByText("评估工期与修复方案")
 
     expect((screen.getByRole("button", { name: "发送" }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByText("⏱️ 评估工期与修复方案"))
+    fireEvent.click(screen.getByText("评估工期与修复方案"))
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("请评估这个问题的修复工期、风险和建议方案。")
 
     await waitFor(() => {
@@ -105,19 +105,19 @@ describe("App", () => {
   it("filters command list dynamically when query changes", async () => {
     render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    await screen.findByText("⏱️ 评估工期与修复方案")
+    await screen.findByText("评估工期与修复方案")
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: "/" } })
     
     expect(screen.getByText("快捷技能")).toBeTruthy()
-    expect(screen.getAllByText("⏱️ 评估工期与修复方案").length).toBe(1)
+    expect(screen.getAllByText("评估工期与修复方案").length).toBe(2)
     expect(screen.getByText("/estimate")).toBeTruthy()
     expect(screen.queryByText("获取修复建议")).toBeNull()
     expect(screen.queryByText("自由对话问答")).toBeNull()
 
     fireEvent.change(textarea, { target: { value: "/est" } })
-    expect(screen.getAllByText("⏱️ 评估工期与修复方案").length).toBe(1)
+    expect(screen.getAllByText("评估工期与修复方案").length).toBe(2)
 
     fireEvent.change(textarea, { target: { value: "/rep" } })
     expect(screen.queryByText("快捷技能")).toBeNull()
@@ -134,7 +134,7 @@ describe("App", () => {
 
     expect(headerActions?.children[0]).toBe(screen.getByRole("button", { name: "选择工作空间" }))
     expect(headerActions?.children[1]).toBe(copyButton)
-    expect(headerActions?.children[2]).toBe(skillButton)
+    expect(headerActions?.children[3]).toBe(skillButton)
 
     fireEvent.click(copyButton)
 

@@ -37,26 +37,10 @@ const CheckIcon = () => (
   </svg>
 )
 
-const HistoryIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
-  </svg>
-)
-
-const ChevronRightIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-)
-
 interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
   onSelectSkill?: (skill: Skill) => void
-  sessions?: SessionListItem[]
-  activeSessionId?: string | null
-  onSwitchSession?: (sessionId: string) => void
 }
 
 function renderMarkdown(md: string): string {
@@ -183,15 +167,8 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function formatSessionTime(iso: string): string {
-  return new Date(iso).toLocaleString("zh-CN", {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-  })
-}
-
-export function ChatThread({ messages, skills = [], onSelectSkill, sessions, activeSessionId, onSwitchSession }: ChatThreadProps) {
+export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     if (containerRef.current) {
@@ -199,62 +176,8 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
     }
   }, [messages])
 
-  const activeSession = sessions?.find((s) => s.id === activeSessionId)
-
   return (
     <div className="chat-thread" ref={containerRef}>
-      {/* 固定历史入口 */}
-      {sessions && sessions.length >= 1 && (
-        <div className="session-bar">
-          <button
-            type="button"
-            className={`session-bar-toggle ${historyOpen ? "open" : ""}`}
-            onClick={() => setHistoryOpen(!historyOpen)}
-          >
-            <HistoryIcon />
-            <span className="session-bar-label">
-              {activeSession ? (activeSession.title || activeSession.id.slice(0, 8)) : "历史会话"}
-            </span>
-            <span className="session-bar-count">{sessions.length}</span>
-            <span className={`session-bar-chevron ${historyOpen ? "open" : ""}`}>
-              <ChevronRightIcon />
-            </span>
-          </button>
-
-          {/* 展开的历史列表 */}
-          {historyOpen && (
-            <div className="session-drawer">
-              {sessions.map((s) => {
-                const isActive = s.id === activeSessionId
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={`session-item ${isActive ? "active" : ""}`}
-                    onClick={() => {
-                      onSwitchSession?.(s.id)
-                      setHistoryOpen(false)
-                    }}
-                  >
-                    <div className="session-item-top">
-                      <span className="session-item-title">
-                        {s.title || s.id.slice(0, 8)}
-                      </span>
-                      <span className="session-item-time">{formatSessionTime(s.updatedAt)}</span>
-                    </div>
-                    <div className="session-item-meta">
-                      {s.messageCount} 条消息
-                      {s.lastMessage && <span className="session-item-preview">{s.lastMessage}</span>}
-                      {isActive && <span className="session-item-current">当前</span>}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {messages.length === 0 ? (
         <div className="empty-thread">
           <div className="welcome-section">
@@ -264,34 +187,17 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sessions, act
             </p>
           </div>
 
-          <div className="sticky-notes-container">
-            {skills.map((skill, index) => {
-              const stickyColors = ["lime", "lilac", "cream", "pink", "mint", "coral"];
-              const stickyRotations = ["-2.5deg", "1.5deg", "-1.2deg", "2deg", "-2deg", "1deg"];
-              const color = stickyColors[index % stickyColors.length];
-              const rotation = stickyRotations[index % stickyRotations.length];
-              return (
-                <div
-                  key={skill.id}
-                  className={`sticky-note sticky-note-${color}`}
-                  style={{ transform: `rotate(${rotation})` }}
-                  onClick={() => onSelectSkill?.(skill)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      onSelectSkill?.(skill)
-                    }
-                  }}
-                >
-                  <div className="sticky-note-icon">{skill.icon}</div>
-                  <div className="sticky-note-bottom">
-                    <span className="sticky-note-name">{skill.name}</span>
-                    <span className="sticky-note-id">/{skill.id}</span>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="skills-grid">
+            {skills.map((skill) => (
+              <button
+                key={skill.id}
+                type="button"
+                className="skill-chip"
+                onClick={() => onSelectSkill?.(skill)}
+              >
+                {skill.name}
+              </button>
+            ))}
           </div>
         </div>
       ) : (

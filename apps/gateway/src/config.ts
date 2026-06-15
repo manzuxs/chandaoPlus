@@ -8,7 +8,7 @@ export const PORT = Number(process.env.PORT || 3210)
 export const CLAUDE_BIN = process.env.CLAUDE_BIN || "claude"
 export const CLAUDE_ARGS = process.env.CLAUDE_ARGS || "--print"
 export const CODEX_BIN = process.env.CODEX_BIN || "codex"
-export const CODEX_ARGS = process.env.CODEX_ARGS || "exec"
+export const CODEX_ARGS = process.env.CODEX_ARGS || "exec --skip-git-repo-check"
 
 // Default location for workspace profile storage file
 export const WORKSPACE_STORE_PATH =
