@@ -142,7 +142,7 @@ function renderMarkdown(md: string): string {
   return html
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -160,9 +160,51 @@ function CopyButton({ text }: { text: string }) {
       className={`btn-copy ${copied ? "copied" : ""}`}
       onClick={handleCopy}
       type="button"
-      title={copied ? "已复制" : "复制"}
+      title={copied ? "已复制" : `复制${label || ""}`}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}
+      {label && <span className="btn-copy-label">{copied ? "已复制" : label}</span>}
+    </button>
+  )
+}
+
+function CopyHtmlButton({ markdown, label }: { markdown: string; label: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      // Generate HTML and strip UI-only wrappers (e.g. table-wrapper div)
+      let html = renderMarkdown(markdown)
+        .replace(/<div class="table-wrapper">/g, "")
+        .replace(/<\/div>(<\/table>)/g, "$1") // stray </div> after </table>
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([markdown], { type: "text/plain" }),
+        }),
+      ])
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      // Fallback: copy raw HTML string as plain text
+      try {
+        await navigator.clipboard.writeText(renderMarkdown(markdown))
+      } catch { /* ignore */ }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <button
+      className={`btn-copy ${copied ? "copied" : ""}`}
+      onClick={handleCopy}
+      type="button"
+      title={copied ? "已复制" : `复制${label}`}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      <span className="btn-copy-label">{copied ? "已复制" : label}</span>
     </button>
   )
 }
@@ -233,7 +275,8 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
                   </div>
                   {msg.role === "assistant" && (
                     <div className="message-actions">
-                      <CopyButton text={msg.content} />
+                      <CopyButton text={msg.content} label="MD" />
+                      <CopyHtmlButton markdown={msg.content} label="HTML" />
                     </div>
                   )}
                 </div>
