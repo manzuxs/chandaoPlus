@@ -1794,3 +1794,19 @@ button {
   padding: 8px 16px;
   font-size: 13px;
 }
+
+/* === Generating State Cursor === */
+.message-bubble.assistant.generating .message-content::after {
+  content: '▋';
+  display: inline-block;
+  margin-left: var(--space-xxs);
+  color: var(--accent-magenta);
+  animation: blink 1s step-end infinite;
+  vertical-align: middle;
+}
+
+@keyframes blink {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+

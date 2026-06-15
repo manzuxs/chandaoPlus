@@ -308,6 +308,7 @@ export function App() {
           messages={messages}
           skills={skills}
           onSelectSkill={selectSlashCommand}
+          sending={sending}
         />
       </div>
 

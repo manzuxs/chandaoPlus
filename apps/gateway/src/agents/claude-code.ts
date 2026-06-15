@@ -8,7 +8,7 @@ function streamProcess(
   args: string[],
   cwd: string,
   prompt: string,
-  onText: (text: string) => void
+  onChunk: (chunk: any) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"] })
@@ -16,13 +16,44 @@ function streamProcess(
     child.stdin.write(prompt)
     child.stdin.end()
 
-    child.stdout.on("data", (chunk) => onText(chunk.toString()))
+    let stdoutBuffer = ""
+    child.stdout.on("data", (chunk) => {
+      stdoutBuffer += chunk.toString()
+      const lines = stdoutBuffer.split("\n")
+      stdoutBuffer = lines.pop() || ""
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        try {
+          const event = JSON.parse(trimmed)
+          if (event.type === "stream_event") {
+            const innerEvent = event.event
+            if (innerEvent) {
+              if (innerEvent.type === "content_block_delta" && innerEvent.delta) {
+                if (innerEvent.delta.type === "text_delta" && innerEvent.delta.text) {
+                  onChunk({ type: "text", content: innerEvent.delta.text })
+                } else if (innerEvent.delta.type === "thinking_delta" && innerEvent.delta.thinking) {
+                  onChunk({ type: "status", content: "思考中..." })
+                }
+              }
+            }
+          } else if (event.type === "progress" && event.content) {
+            onChunk({ type: "status", content: event.content })
+          } else if (event.type === "error" && event.message) {
+            onChunk({ type: "error", content: event.message })
+          }
+        } catch {
+          onChunk({ type: "text", content: trimmed + "\n" })
+        }
+      }
+    })
     
     let stderrBuffer = ""
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString()
       stderrBuffer += text
-      onText(text)
+      console.error(`[Claude Code Stderr] ${text.trim()}`)
     })
 
     child.on("close", (code) => {
@@ -58,6 +89,20 @@ export const claudeCodeAdapter: AgentAdapter = {
     const rawArgs = process.env.CLAUDE_ARGS || CLAUDE_ARGS
     const args = rawArgs.split(/\s+/).filter(Boolean)
 
+    // Ensure we have printing and stream-json output options enabled
+    if (!args.includes("--print") && !args.includes("-p")) {
+      args.push("--print")
+    }
+    if (!args.includes("--output-format")) {
+      args.push("--output-format", "stream-json")
+    }
+    if (!args.includes("--include-partial-messages")) {
+      args.push("--include-partial-messages")
+    }
+    if (!args.includes("--verbose")) {
+      args.push("--verbose")
+    }
+
     if (request.sessionId && sessionStore) {
       const existing = await sessionStore.get(request.sessionId)
       const isFirstQuery = !existing || !existing.messages || existing.messages.length <= 1
@@ -85,9 +130,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
 
     try {
-      await streamProcess(bin, args, workspace.rootPath, prompt, (text) => {
-        onChunk({ type: "text", content: text })
-      })
+      await streamProcess(bin, args, workspace.rootPath, prompt, onChunk)
     } catch (err: any) {
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
@@ -103,9 +146,7 @@ export const claudeCodeAdapter: AgentAdapter = {
             fallbackArgs.push(args[i])
           }
         }
-        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, (text) => {
-          onChunk({ type: "text", content: text })
-        })
+        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, onChunk)
       } else {
         throw err
       }

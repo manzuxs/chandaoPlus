@@ -41,6 +41,7 @@ interface ChatThreadProps {
   messages: ChatMessage[]
   skills?: Skill[]
   onSelectSkill?: (skill: Skill) => void
+  sending?: boolean
 }
 
 function renderMarkdown(md: string): string {
@@ -209,7 +210,7 @@ function CopyHtmlButton({ markdown, label }: { markdown: string; label: string }
   )
 }
 
-export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadProps) {
+export function ChatThread({ messages, skills = [], onSelectSkill, sending = false }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -245,6 +246,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
       ) : (
         messages.map((msg, index) => {
           const isThinking = msg.role === "assistant" && !msg.content
+          const isGenerating = sending && msg.role === "assistant" && index === messages.length - 1
 
           return (
             <div key={index} className={`message-row ${msg.role}`}>
@@ -263,7 +265,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill }: ChatThreadP
                 </div>
               ) : (
                 <div className="message-block">
-                  <div className={`message-bubble ${msg.role}`}>
+                  <div className={`message-bubble ${msg.role} ${isGenerating ? "generating" : ""}`}>
                     {msg.role === "assistant" ? (
                       <div
                         className="message-content"
