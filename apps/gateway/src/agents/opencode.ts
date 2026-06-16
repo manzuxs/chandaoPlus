@@ -16,7 +16,7 @@ function getSystemProxy(): { http?: string; socks?: string } | null {
       const proxyMatch = stdout.match(/HTTPProxy\s*:\s*(\S+)/)
       const portMatch = stdout.match(/HTTPPort\s*:\s*(\d+)/)
       if (proxyMatch && portMatch) {
-        res.http = `http://${proxyMatch[1]}:${portMatch[2]}`
+        res.http = `http://${proxyMatch[1]}:${portMatch[1]}`
       }
     }
     
@@ -24,7 +24,7 @@ function getSystemProxy(): { http?: string; socks?: string } | null {
       const proxyMatch = stdout.match(/SOCKSProxy\s*:\s*(\S+)/)
       const portMatch = stdout.match(/SOCKSPort\s*:\s*(\d+)/)
       if (proxyMatch && portMatch) {
-        res.socks = `socks5://${proxyMatch[1]}:${portMatch[2]}`
+        res.socks = `socks5://${proxyMatch[1]}:${portMatch[1]}`
       }
     }
     
@@ -125,7 +125,7 @@ export const opencodeAdapter: AgentAdapter = {
     if (!args.includes("--pure")) {
       args.push("--pure")
     }
-    if (request.permissionMode === "full" && !args.includes("--dangerously-skip-permissions")) {
+    if (!args.includes("--dangerously-skip-permissions")) {
       args.push("--dangerously-skip-permissions")
     }
 
