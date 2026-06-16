@@ -53,6 +53,7 @@ export const SessionSchema = z.object({
   messages: z.array(ChatMessageSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  agent: AgentKindSchema.optional(),
   model: z.string().optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),

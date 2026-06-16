@@ -12,6 +12,8 @@ interface SessionRecord {
   createdAt: string;
   updatedAt: string;
   codexThreadId?: string;
+  opencodeSessionId?: string;
+  agent?: "claude-code" | "codex" | "opencode";
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   permissionMode?: "ask" | "auto" | "full" | "custom";
@@ -49,6 +51,7 @@ export class SessionStore {
     workspaceId: string,
     title?: string,
     config?: {
+      agent?: "claude-code" | "codex" | "opencode";
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
@@ -64,6 +67,7 @@ export class SessionStore {
         messages: [],
         createdAt: now,
         updatedAt: now,
+        agent: config?.agent,
         model: config?.model,
         effort: config?.effort,
         permissionMode: config?.permissionMode,
@@ -160,6 +164,7 @@ export class SessionStore {
   async updateConfig(
     sessionId: string,
     config: {
+      agent?: "claude-code" | "codex" | "opencode";
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
@@ -169,9 +174,21 @@ export class SessionStore {
       const records = await this.readAll();
       const record = records.find((r) => r.id === sessionId);
       if (!record) throw new Error(`Session ${sessionId} not found`);
+      if (config.agent !== undefined) record.agent = config.agent;
       if (config.model !== undefined) record.model = config.model;
       if (config.effort !== undefined) record.effort = config.effort;
       if (config.permissionMode !== undefined) record.permissionMode = config.permissionMode;
+      record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async updateOpencodeSessionId(sessionId: string, opencodeSessionId: string): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      record.opencodeSessionId = opencodeSessionId;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
     });

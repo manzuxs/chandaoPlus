@@ -26,6 +26,7 @@ export function registerChatRoutes(app: any, deps: any) {
         }
         // 续问时同步更新配置参数到 SessionStore
         await deps.sessionStore.updateConfig(sessionId, {
+          agent: request.agent,
           model: request.model,
           effort: request.effort,
           permissionMode: request.permissionMode
@@ -33,6 +34,7 @@ export function registerChatRoutes(app: any, deps: any) {
       } else {
         // 首问时传入当前配置参数进行持久化
         const session = await deps.sessionStore.create(request.workspaceId, undefined, {
+          agent: request.agent,
           model: request.model,
           effort: request.effort,
           permissionMode: request.permissionMode
@@ -93,6 +95,12 @@ export function registerChatRoutes(app: any, deps: any) {
           onChunk: (chunk: any) => {
             if (chunk.type === "text") {
               assistantContent += chunk.content
+            }
+            if (chunk.type === "opencode_session_id") {
+              deps.sessionStore.updateOpencodeSessionId(sessionId, chunk.content).catch((err: any) => {
+                console.error("Failed to update opencode session id:", err)
+              })
+              return
             }
             res.write(`data: ${JSON.stringify(chunk)}\n\n`)
           }

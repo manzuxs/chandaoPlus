@@ -123,7 +123,17 @@ export function App() {
     setConfirmOpen(true)
   }
   const [command, setCommand] = useState<ChatCommand>("default")
-  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode">("claude-code")
+  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode">(() => {
+    try {
+      const saved = localStorage.getItem("chandaoplus_agent_settings")
+      if (saved) {
+        const settings = JSON.parse(saved)
+        const lastAgent = localStorage.getItem("chandaoplus_last_agent")
+        if (lastAgent && settings[lastAgent]) return lastAgent as "claude-code" | "codex" | "opencode"
+      }
+    } catch (e) {}
+    return "claude-code"
+  })
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [agentModelMenuOpen, setAgentModelMenuOpen] = useState(false)
   const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
@@ -166,7 +176,23 @@ export function App() {
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
+
+  // 同步 agent 状态：加载会话时跟随会话渠道，新会话时将本地偏好同步到 temp
+  const prevSessionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (sessionId && sessionAgent && sessionAgent !== agent) {
+      setAgent(sessionAgent)
+      localStorage.setItem("chandaoplus_last_agent", sessionAgent)
+    } else if (!sessionId) {
+      const saved = agentSettings[agent] || { model: "default", effort: "medium" }
+      setSessionConfig({
+        agent,
+        model: saved.model || "default",
+        effort: saved.effort || "medium"
+      })
+    }
+  }, [sessionId, sessionAgent, agent, agentSettings, setSessionConfig])
 
   const [cachedModels, setCachedModels] = useState<Record<string, { id: string; name: string; hasReasoning: boolean }[]>>({
     "claude-code": [],
@@ -242,9 +268,11 @@ export function App() {
     setAgentModelMenuOpen(false)
     setPermissionMenuOpen(false)
     setModelMenuOpen(false)
+    localStorage.setItem("chandaoplus_last_agent", a)
 
     const saved = agentSettings[a] || { model: "default", effort: "medium" }
     setSessionConfig({
+      agent: a,
       model: saved.model || "default",
       effort: saved.effort || "medium"
     })
