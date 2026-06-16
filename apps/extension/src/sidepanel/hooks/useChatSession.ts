@@ -934,9 +934,9 @@ export function useChatSession(workspaceId: string) {
   const effort = activeState.effort || "medium"
   const permissionMode = activeState.permissionMode || "full"
 
-  const stop = useCallback((id?: string) => {
+  const stop = useCallback((id?: string, taskId?: string) => {
     const key = id !== undefined ? id : (sessionId || tempSessionKey)
-    const runningTaskId = sessionStatesRef.current[key]?.runningTaskId
+    const runningTaskId = taskId || sessionStatesRef.current[key]?.runningTaskId
     if (runningTaskId) {
       setSessionStates((prev) => {
         const state = prev[key] || { messages: [], sending: true, statusText: "" }

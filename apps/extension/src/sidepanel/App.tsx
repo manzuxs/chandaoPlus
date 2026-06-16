@@ -467,7 +467,7 @@ export function App() {
       <footer className="app-footer">
         {statusText && (
           <div
-            className={`status-banner ${copiedStatus ? "copied" : ""}`}
+            className={`status-banner ${copiedStatus ? "copied" : ""} ${statusText.startsWith("连接断开") ? "reconnecting" : ""}`}
             onClick={handleStatusClick}
             role="button"
             tabIndex={0}
@@ -943,6 +943,12 @@ export function App() {
                       <div className="history-session-item-top">
                         <span className="history-session-item-title">
                           {s.title || s.id.slice(0, 8)}
+                          {s.runningTaskId && (
+                            <span className={`history-session-running-badge ${s.runningStatus === "stopping" ? "stopping" : "running"}`} title={s.runningStatus === "stopping" ? "正在停止后台任务" : "后台任务运行中"}>
+                              <span className="running-dot" />
+                              {s.runningStatus === "stopping" ? "停止中" : "运行中"}
+                            </span>
+                          )}
                         </span>
                         <span className="history-session-item-time">
                           {formatSessionTime(s.updatedAt)}
@@ -954,6 +960,20 @@ export function App() {
                         </span>
                         <div className="history-session-item-meta-right" onClick={(e) => e.stopPropagation()}>
                           {isActive && <span className="history-session-item-current">当前</span>}
+                          {s.runningTaskId && (
+                            <button
+                              type="button"
+                              className="btn-stop-session-quick"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                stop(s.id, s.runningTaskId);
+                              }}
+                              title="终止后台任务"
+                              aria-label="终止后台任务"
+                            >
+                              <StopIcon />
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-delete-session"
