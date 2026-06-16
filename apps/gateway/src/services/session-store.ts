@@ -11,6 +11,8 @@ interface SessionRecord {
   contextBundleDirs?: string[];
   createdAt: string;
   updatedAt: string;
+  runningTaskId?: string;
+  runningStatus?: "running" | "stopping";
   codexThreadId?: string;
   opencodeSessionId?: string;
   agent?: "claude-code" | "codex" | "opencode";
@@ -96,6 +98,8 @@ export class SessionStore {
         lastMessage: r.messages.length > 0 ? r.messages[r.messages.length - 1].content.slice(0, 80) : undefined,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
+        runningTaskId: r.runningTaskId,
+        runningStatus: r.runningStatus,
       }))
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }
@@ -191,6 +195,49 @@ export class SessionStore {
       record.opencodeSessionId = opencodeSessionId;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
+    });
+  }
+
+  async updateRunningTask(sessionId: string, taskId: string, status: "running" | "stopping" = "running"): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      record.runningTaskId = taskId;
+      record.runningStatus = status;
+      record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async clearRunningTask(sessionId: string, taskId?: string): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      if (taskId && record.runningTaskId && record.runningTaskId !== taskId) return;
+      delete record.runningTaskId;
+      delete record.runningStatus;
+      record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async clearRunningTaskByTaskId(taskId: string): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      let changed = false;
+      for (const record of records) {
+        if (record.runningTaskId === taskId) {
+          delete record.runningTaskId;
+          delete record.runningStatus;
+          record.updatedAt = new Date().toISOString();
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.writeAll(records);
+      }
     });
   }
 }

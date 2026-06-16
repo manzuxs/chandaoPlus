@@ -960,7 +960,7 @@ export function App() {
                             onClick={(e) => {
                               e.stopPropagation();
                               requestConfirm("删除会话", "确定要删除这个会话吗？删除后将无法恢复该会话下的所有内容。", () => {
-                                deleteSession(s.id);
+                                deleteSession(s.id, s.runningTaskId);
                               });
                             }}
                             title="删除会话"

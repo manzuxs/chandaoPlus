@@ -922,6 +922,325 @@ describe("App", () => {
     expect(customFetchMock.mock.calls.filter(([url]) => String(url).includes("/api/chat/stream"))).toHaveLength(1)
   })
 
+  it("reconnects a running task when restoring the last session", async () => {
+    const storedSessionId = "550e8400-e29b-41d4-a716-446655440020"
+    const customFetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes(`/api/sessions/${storedSessionId}`)) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: storedSessionId,
+            workspaceId: "ws-1",
+            messages: [{ role: "user", content: "上一轮问题" }],
+            runningTaskId: "task-1",
+            runningStatus: "running",
+            model: "default",
+            effort: "medium",
+            permissionMode: "full"
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-1/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"status","content":"恢复中"}\n\n'))
+              controller.enqueue(new TextEncoder().encode('data: {"type":"text","content":"恢复回复"}\n\n'))
+              controller.enqueue(new TextEncoder().encode('data: {"type":"done","content":""}\n\n'))
+              controller.close()
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result: Record<string, any> = {}
+            if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) result.lastWorkspaceId = "ws-1"
+            if (keys === "session_ws-1") result["session_ws-1"] = storedSessionId
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("恢复回复")
+    expect(customFetchMock.mock.calls.some(([url]) => String(url).includes("/api/chat/tasks/task-1/stream"))).toBe(true)
+  })
+
+  it("stops a running task through the gateway stop endpoint", async () => {
+    let streamController: ReadableStreamDefaultController | null = null
+    const storedSessionId = "550e8400-e29b-41d4-a716-446655440021"
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes(`/api/sessions/${storedSessionId}`)) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: storedSessionId,
+            workspaceId: "ws-1",
+            messages: [{ role: "user", content: "运行中的问题" }],
+            runningTaskId: "task-2",
+            runningStatus: "running"
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-2/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              streamController = controller
+              controller.enqueue(new TextEncoder().encode('data: {"type":"status","content":"运行中"}\n\n'))
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-2/stop") && options?.method === "POST") {
+        streamController?.enqueue(new TextEncoder().encode('data: {"type":"status","content":"正在停止..."}\n\n'))
+        streamController?.close()
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result: Record<string, any> = {}
+            if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) result.lastWorkspaceId = "ws-1"
+            if (keys === "session_ws-1") result["session_ws-1"] = storedSessionId
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("运行中")
+    fireEvent.click(screen.getByRole("button", { name: "停止" }))
+
+    await waitFor(() => {
+      expect(customFetchMock.mock.calls.some(([url, options]) => String(url).includes("/api/chat/tasks/task-2/stop") && options?.method === "POST")).toBe(true)
+    })
+  })
+
+  it("keeps the UI usable when stopping a running task fails", async () => {
+    const storedSessionId = "550e8400-e29b-41d4-a716-446655440022"
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes(`/api/sessions/${storedSessionId}`)) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: storedSessionId,
+            workspaceId: "ws-1",
+            messages: [{ role: "user", content: "运行中的问题" }],
+            runningTaskId: "task-stop-fails",
+            runningStatus: "running"
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-stop-fails/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"status","content":"运行中"}\n\n'))
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-stop-fails/stop") && options?.method === "POST") {
+        return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: "stop failed" }) })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result: Record<string, any> = {}
+            if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) result.lastWorkspaceId = "ws-1"
+            if (keys === "session_ws-1") result["session_ws-1"] = storedSessionId
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("运行中")
+    fireEvent.click(screen.getByRole("button", { name: "停止" }))
+
+    await screen.findByText("停止失败: stop failed")
+    expect(screen.getByRole("button", { name: "发送" })).toBeTruthy()
+  })
+
+  it("stops a running task before deleting its session", async () => {
+    const sessionId = "550e8400-e29b-41d4-a716-446655440023"
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{
+            id: sessionId,
+            workspaceId: "ws-1",
+            title: "运行中会话",
+            messageCount: 1,
+            lastMessage: "运行中",
+            createdAt: "2026-06-16T00:00:00.000Z",
+            updatedAt: "2026-06-16T00:00:00.000Z",
+            runningTaskId: "task-delete"
+          }])
+        })
+      }
+      if (url.includes(`/api/sessions/${sessionId}`)) {
+        if (options?.method === "DELETE") {
+          return Promise.resolve({ ok: true, status: 204 })
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            id: sessionId,
+            workspaceId: "ws-1",
+            messages: [{ role: "user", content: "运行中" }],
+            runningTaskId: "task-delete",
+            runningStatus: "running"
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-delete/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"status","content":"运行中"}\n\n'))
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/tasks/task-delete/stop") && options?.method === "POST") {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result: Record<string, any> = {}
+            if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) result.lastWorkspaceId = "ws-1"
+            if (keys === "session_ws-1") result["session_ws-1"] = sessionId
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("运行中")
+    fireEvent.click(screen.getByRole("button", { name: "历史会话" }))
+    const deleteBtn = await screen.findByRole("button", { name: "删除会话" })
+    fireEvent.click(deleteBtn)
+    fireEvent.click(await screen.findByRole("button", { name: "确认删除" }))
+
+    await waitFor(() => {
+      const stopCallIndex = customFetchMock.mock.calls.findIndex(([url, options]) => String(url).includes("/api/chat/tasks/task-delete/stop") && options?.method === "POST")
+      const deleteCallIndex = customFetchMock.mock.calls.findIndex(([url, options]) => String(url).includes(`/api/sessions/${sessionId}`) && options?.method === "DELETE")
+      expect(stopCallIndex).toBeGreaterThanOrEqual(0)
+      expect(deleteCallIndex).toBeGreaterThan(stopCallIndex)
+    })
+  })
+
   it("renders effort values dynamically through a single-level card", async () => {
     render(<App />)
     

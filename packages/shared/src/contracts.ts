@@ -53,6 +53,8 @@ export const SessionSchema = z.object({
   messages: z.array(ChatMessageSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  runningTaskId: z.string().optional(),
+  runningStatus: z.enum(["running", "stopping"]).optional(),
   agent: AgentKindSchema.optional(),
   model: z.string().optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
@@ -67,6 +69,8 @@ export const SessionListItemSchema = z.object({
   lastMessage: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  runningTaskId: z.string().optional(),
+  runningStatus: z.enum(["running", "stopping"]).optional(),
 })
 
 export const CreateSessionRequestSchema = z.object({
@@ -86,8 +90,11 @@ export const ChatRequestSchema = z.object({
 })
 
 export const ChatStreamChunkSchema = z.object({
-  type: z.enum(["status", "text", "error", "done", "progress"]),
-  content: z.string(),
+  type: z.enum(["meta", "status", "text", "error", "done", "progress"]),
+  content: z.string().default(""),
+  sessionId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  taskId: z.string().optional(),
   meta: z.record(z.string(), z.string()).optional()
 })
 

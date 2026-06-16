@@ -4,8 +4,125 @@ import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { CODEX_BIN, OPENCODE_BIN } from "../config"
 
+type TaskStatus = "running" | "completed" | "error" | "stopped"
+
+type ChatTask = {
+  id: string
+  sessionId: string
+  workspaceId: string
+  events: any[]
+  observers: Set<any>
+  abortController: AbortController
+  status: TaskStatus
+  assistantContent: string
+  hasPersisted: boolean
+  stopRequested: boolean
+}
+
+function writeSse(res: any, chunk: any) {
+  if (res.writableEnded || res.destroyed) return
+  res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+}
+
 export function registerChatRoutes(app: any, deps: any) {
   const router = Router()
+  const tasks = deps.chatTaskStore || new Map<string, ChatTask>()
+
+  const emitTaskEvent = (task: ChatTask, chunk: any) => {
+    task.events.push(chunk)
+    for (const observer of task.observers) {
+      writeSse(observer, chunk)
+    }
+  }
+
+  const finishTask = async (task: ChatTask, status: TaskStatus) => {
+    task.status = status
+    if (task.assistantContent && !task.hasPersisted) {
+      task.hasPersisted = true
+      const suffix = status === "stopped" ? "\n\n[已停止]" : ""
+      try {
+        await deps.sessionStore.appendMessage(task.sessionId, {
+          role: "assistant",
+          content: task.assistantContent + suffix,
+        })
+      } catch (err: any) {
+        console.error("Failed to persist assistant message:", err)
+      }
+    }
+    try {
+      await deps.sessionStore.clearRunningTask?.(task.sessionId, task.id)
+    } catch (err: any) {
+      console.error("Failed to clear running task:", err)
+    }
+    for (const observer of task.observers) {
+      if (!observer.writableEnded && !observer.destroyed) observer.end()
+    }
+    task.observers.clear()
+    tasks.delete(task.id)
+  }
+
+  const observeTask = (task: ChatTask, res: any, fromSeq = 0) => {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
+    res.setHeader("Cache-Control", "no-cache")
+    res.setHeader("Connection", "keep-alive")
+
+    for (const event of task.events.slice(fromSeq)) {
+      writeSse(res, event)
+    }
+
+    if (task.status !== "running") {
+      res.end()
+      return Promise.resolve()
+    }
+
+    task.observers.add(res)
+    return new Promise<void>((resolve) => {
+      const cleanup = () => {
+        task.observers.delete(res)
+        resolve()
+      }
+      res.on("close", cleanup)
+      res.on("finish", cleanup)
+    })
+  }
+
+  const startTask = async (task: ChatTask, params: {
+    request: any
+    workspace: any
+    bundleDir: string
+    adapter: any
+  }) => {
+    try {
+      const skill = await deps.skillStore.get(params.request.command)
+      await params.adapter.run({
+        request: params.request,
+        workspace: params.workspace,
+        bundleDir: params.bundleDir,
+        skill,
+        sessionStore: deps.sessionStore,
+        signal: task.abortController.signal,
+        onChunk: (chunk: any) => {
+          if (chunk.type === "text") {
+            task.assistantContent += chunk.content
+          }
+          if (chunk.type === "opencode_session_id") {
+            deps.sessionStore.updateOpencodeSessionId(task.sessionId, chunk.content).catch((err: any) => {
+              console.error("Failed to update opencode session id:", err)
+            })
+            return
+          }
+          emitTaskEvent(task, chunk)
+        }
+      })
+      const finalStatus: TaskStatus = task.stopRequested || task.abortController.signal.aborted ? "stopped" : "completed"
+      emitTaskEvent(task, { type: finalStatus === "stopped" ? "status" : "done", content: finalStatus === "stopped" ? "已停止" : "" })
+      await finishTask(task, finalStatus)
+    } catch (err: any) {
+      console.error("Agent process execution error:", err)
+      emitTaskEvent(task, { type: "error", content: err.message })
+      await finishTask(task, "error")
+    }
+  }
 
   router.post("/stream", async (req, res) => {
     try {
@@ -23,6 +140,10 @@ export function registerChatRoutes(app: any, deps: any) {
         const existing = await deps.sessionStore.get(sessionId)
         if (!existing || existing.workspaceId !== request.workspaceId) {
           res.status(404).json({ error: "Session not found or workspace mismatch" })
+          return
+        }
+        if (existing.runningTaskId && tasks.has(existing.runningTaskId)) {
+          res.status(409).json({ error: "Session already has a running task", taskId: existing.runningTaskId })
           return
         }
         conversationMessages = [...(existing.messages || [])]
@@ -51,85 +172,40 @@ export function registerChatRoutes(app: any, deps: any) {
       for (const msg of request.messages) {
         await deps.sessionStore.appendMessage(sessionId, msg)
       }
+      const confirmedSessionId = sessionId!
 
       const contextSessionId = crypto.randomUUID()
       const bundleDir = await writeContextBundle(workspace.rootPath, contextSessionId, request.page, conversationMessages)
-      await deps.sessionStore.addContextBundleDir(sessionId, bundleDir)
-
-      res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
-      res.setHeader("Cache-Control", "no-cache")
-      res.setHeader("Connection", "keep-alive")
-
-      // 首帧返回 sessionId
-      res.write(`data: ${JSON.stringify({ type: "meta", sessionId, workspaceId: request.workspaceId })}\n\n`)
-      res.write(`data: ${JSON.stringify({ type: "status", content: `bundle ready: ${bundleDir}` })}\n\n`)
+      await deps.sessionStore.addContextBundleDir(confirmedSessionId, bundleDir)
 
       const adapter = deps.agentRegistry.get(request.agent)
       if (!adapter) {
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
         res.write(`data: ${JSON.stringify({ type: "error", content: `agent not found: ${request.agent}` })}\n\n`)
         res.end()
         return
       }
 
-      let completed = false
-      let hasPersisted = false
-      let assistantContent = ""
-
-      // 创建 AbortController，前端断开连接（点击停止）时终止子进程
-      const abortController = new AbortController()
-
-      // 流中断时持久化已接收的部分助手消息，并终止子进程
-      req.on("close", () => {
-        abortController.abort()
-        if (!completed && !hasPersisted && assistantContent) {
-          hasPersisted = true
-          deps.sessionStore.appendMessage(sessionId!, {
-            role: "assistant",
-            content: assistantContent + "\n\n[已停止]",
-          }).catch((err: any) => { console.error("Failed to persist interrupted message:", err) })
-        }
-      })
-
-      try {
-        const skill = await deps.skillStore.get(request.command)
-        await adapter.run({
-          request,
-          workspace,
-          bundleDir,
-          skill,
-          sessionStore: deps.sessionStore,
-          signal: abortController.signal,
-          onChunk: (chunk: any) => {
-            if (chunk.type === "text") {
-              assistantContent += chunk.content
-            }
-            if (chunk.type === "opencode_session_id") {
-              deps.sessionStore.updateOpencodeSessionId(sessionId, chunk.content).catch((err: any) => {
-                console.error("Failed to update opencode session id:", err)
-              })
-              return
-            }
-            res.write(`data: ${JSON.stringify(chunk)}\n\n`)
-          }
-        })
-        res.write(`data: ${JSON.stringify({ type: "done", content: "" })}\n\n`)
-        completed = true
-      } catch (err: any) {
-        completed = true
-        console.error("Agent process execution error:", err)
-        res.write(`data: ${JSON.stringify({ type: "error", content: err.message })}\n\n`)
+      const task: ChatTask = {
+        id: crypto.randomUUID(),
+        sessionId: confirmedSessionId,
+        workspaceId: request.workspaceId,
+        events: [],
+        observers: new Set(),
+        abortController: new AbortController(),
+        status: "running",
+        assistantContent: "",
+        hasPersisted: false,
+        stopRequested: false,
       }
+      tasks.set(task.id, task)
+      await deps.sessionStore.updateRunningTask?.(confirmedSessionId, task.id, "running")
 
-      // 持久化助手回复
-      if (completed && !hasPersisted && assistantContent) {
-        hasPersisted = true
-        await deps.sessionStore.appendMessage(sessionId, {
-          role: "assistant",
-          content: assistantContent,
-        })
-      }
+      emitTaskEvent(task, { type: "meta", sessionId: confirmedSessionId, workspaceId: request.workspaceId, taskId: task.id })
+      emitTaskEvent(task, { type: "status", content: `bundle ready: ${bundleDir}` })
 
-      res.end()
+      void startTask(task, { request, workspace, bundleDir, adapter })
+      await observeTask(task, res)
     } catch (err: any) {
       console.error("Stream route validation/processing error:", err)
       if (!res.headersSent) {
@@ -139,6 +215,31 @@ export function registerChatRoutes(app: any, deps: any) {
         res.end()
       }
     }
+  })
+
+  router.get("/tasks/:taskId/stream", async (req, res) => {
+    const task = tasks.get(req.params.taskId)
+    if (!task || task.status !== "running") {
+      await deps.sessionStore.clearRunningTaskByTaskId?.(req.params.taskId)
+      res.status(404).json({ error: "Task not found" })
+      return
+    }
+    const fromSeq = typeof req.query.from === "string" ? Number(req.query.from) : 0
+    await observeTask(task, res, Number.isFinite(fromSeq) && fromSeq > 0 ? fromSeq : 0)
+  })
+
+  router.post("/tasks/:taskId/stop", async (req, res) => {
+    const task = tasks.get(req.params.taskId)
+    if (!task) {
+      await deps.sessionStore.clearRunningTaskByTaskId?.(req.params.taskId)
+      res.status(404).json({ error: "Task not found" })
+      return
+    }
+    task.stopRequested = true
+    await deps.sessionStore.updateRunningTask?.(task.sessionId, task.id, "stopping")
+    emitTaskEvent(task, { type: "status", content: "正在停止..." })
+    task.abortController.abort()
+    res.json({ ok: true, taskId: task.id })
   })
 
   router.get("/models", async (req, res) => {

@@ -11,11 +11,38 @@ type SessionState = {
   effort?: "low" | "medium" | "high" | "xhigh" | "max"
   permissionMode?: "ask" | "auto" | "full" | "custom"
   lockedPage?: PageCapture
+  runningTaskId?: string
 }
 
 const getBugId = (page?: PageCapture) => {
   if (page?.metadata?.pageKind !== "zentao-bug-detail") return undefined
   return typeof page.metadata.bugId === "string" ? page.metadata.bugId : undefined
+}
+
+async function readSseStream(response: Response, onChunk: (chunk: any) => void) {
+  const reader = response.body?.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+
+  while (reader) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() || ""
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith("data: ")) {
+        try {
+          onChunk(JSON.parse(trimmed.slice(6)))
+        } catch {
+          // Ignore partial SSE chunk parses
+        }
+      }
+    }
+  }
 }
 
 export function useChatSession(workspaceId: string) {
@@ -30,6 +57,127 @@ export function useChatSession(workspaceId: string) {
   const sessionStatesRef = useRef<typeof sessionStates>({})
   // 每次渲染时更新 ref（不触发重新渲染，仅为同步读取用）
   sessionStatesRef.current = sessionStates
+
+  const connectTaskStream = useCallback(async (taskId: string, key: string) => {
+    if (abortControllersRef.current[key]) return
+
+    const controller = new AbortController()
+    abortControllersRef.current[key] = controller
+    let assistantContent = ""
+
+    setSessionStates((prev) => {
+      const state = prev[key] || { messages: [], sending: false, statusText: "" }
+      return {
+        ...prev,
+        [key]: {
+          ...state,
+          sending: true,
+          runningTaskId: taskId,
+          statusText: state.statusText || "正在恢复任务输出..."
+        }
+      }
+    })
+
+    try {
+      const response = await fetch(`http://127.0.0.1:3210/api/chat/tasks/${taskId}/stream`, {
+        signal: controller.signal
+      })
+      if (!response.ok) {
+        const errorMsg = await response.json().catch(() => ({ error: "Task stream error" }))
+        throw new Error(errorMsg.error || `HTTP ${response.status}`)
+      }
+
+      await readSseStream(response, (chunk) => {
+        if (chunk.type === "status" || chunk.type === "progress") {
+          setSessionStates((prev) => {
+            const state = prev[key] || { messages: [], sending: true, statusText: "" }
+            return {
+              ...prev,
+              [key]: {
+                ...state,
+                statusText: chunk.content
+              }
+            }
+          })
+        } else if (chunk.type === "text") {
+          assistantContent += chunk.content
+          setSessionStates((prev) => {
+            const state = prev[key] || { messages: [], sending: true, statusText: "" }
+            const nextMessages = [...state.messages]
+            const last = nextMessages[nextMessages.length - 1]
+            if (last?.role === "assistant") {
+              nextMessages[nextMessages.length - 1] = { ...last, content: assistantContent }
+            } else {
+              nextMessages.push({ role: "assistant", content: assistantContent })
+            }
+            return {
+              ...prev,
+              [key]: {
+                ...state,
+                messages: nextMessages
+              }
+            }
+          })
+        } else if (chunk.type === "error") {
+          setSessionStates((prev) => {
+            const state = prev[key] || { messages: [], sending: true, statusText: "" }
+            const nextMessages = [...state.messages]
+            nextMessages.push({ role: "assistant", content: `任务失败: ${chunk.content}` })
+            return {
+              ...prev,
+              [key]: {
+                ...state,
+                messages: nextMessages,
+                statusText: `错误: ${chunk.content}`
+              }
+            }
+          })
+        }
+      })
+
+      setSessionStates((prev) => {
+        const state = prev[key] || { messages: [], sending: false, statusText: "" }
+        return {
+          ...prev,
+          [key]: {
+            ...state,
+            sending: false,
+            runningTaskId: undefined,
+            statusText: ""
+          }
+        }
+      })
+    } catch (err: any) {
+      setSessionStates((prev) => {
+        const state = prev[key] || { messages: [], sending: false, statusText: "" }
+        const statusText = err.name === "AbortError"
+          ? (state.statusText.startsWith("停止失败") ? state.statusText : state.statusText)
+          : `任务连接断开: ${err.message}`
+        return {
+          ...prev,
+          [key]: {
+            ...state,
+            sending: false,
+            runningTaskId: undefined,
+            statusText
+          }
+        }
+      })
+    } finally {
+      if (abortControllersRef.current[key] === controller) {
+        delete abortControllersRef.current[key]
+      }
+      setSessionVersion((v) => v + 1)
+    }
+  }, [])
+
+  const stopRunningTask = useCallback(async (taskId: string) => {
+    const response = await fetch(`http://127.0.0.1:3210/api/chat/tasks/${taskId}/stop`, { method: "POST" })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+      throw new Error(err.error || `HTTP ${response.status}`)
+    }
+  }, [])
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -88,9 +236,15 @@ export function useChatSession(workspaceId: string) {
                     agent: session.agent || prev[stored]?.agent,
                     model: prev[stored]?.model || session.model || "default",
                     effort: prev[stored]?.effort || session.effort || "medium",
-                    permissionMode: prev[stored]?.permissionMode || session.permissionMode || "full"
+                    permissionMode: prev[stored]?.permissionMode || session.permissionMode || "full",
+                    runningTaskId: session.runningTaskId
                   }
                 }))
+                if (session.runningTaskId && session.runningStatus) {
+                  connectTaskStream(session.runningTaskId, stored).catch((err) => {
+                    console.error("Failed to reconnect running task:", err)
+                  })
+                }
               }
             })
             .catch(() => {
@@ -110,7 +264,7 @@ export function useChatSession(workspaceId: string) {
     return () => {
       active = false
     }
-  }, [workspaceId])
+  }, [workspaceId, connectTaskStream])
 
   // Persist sessionId to chrome.storage when it changes
   useEffect(() => {
@@ -200,12 +354,18 @@ export function useChatSession(workspaceId: string) {
     }
   }
 
-  const deleteSession = useCallback(async (id: string) => {
-    // 同时也 abort 正在运行的请求
-    abortControllersRef.current[id]?.abort()
-    delete abortControllersRef.current[id]
-
+  const deleteSession = useCallback(async (id: string, runningTaskId?: string) => {
     try {
+      const taskId = runningTaskId || sessionStatesRef.current[id]?.runningTaskId
+      if (taskId) {
+        await stopRunningTask(taskId).catch((err) => {
+          console.error("Failed to stop task before deleting session:", err)
+        })
+      }
+      // 同时也 abort 正在运行的请求
+      abortControllersRef.current[id]?.abort()
+      delete abortControllersRef.current[id]
+
       const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`, {
         method: "DELETE"
       })
@@ -230,7 +390,7 @@ export function useChatSession(workspaceId: string) {
       console.error(err)
       alert("删除会话失败")
     }
-  }, [sessionId, workspaceId])
+  }, [sessionId, workspaceId, stopRunningTask])
 
   const newSession = useCallback(() => {
     // 放弃当前工作空间的新会话时，如果临时会话正在发送，将其 abort
@@ -274,6 +434,11 @@ export function useChatSession(workspaceId: string) {
     // 通过 ref 同步读取最新缓存，避免闭包旧值问题
     const cached = sessionStatesRef.current[id]
     if (cached?.messages?.length > 0) {
+      if (cached.runningTaskId && !abortControllersRef.current[id]) {
+        connectTaskStream(cached.runningTaskId, id).catch((err) => {
+          console.error("Failed to reconnect cached running task:", err)
+        })
+      }
       // 已有缓存，直接使用，不发请求
       return
     }
@@ -300,9 +465,15 @@ export function useChatSession(workspaceId: string) {
             agent: session.agent || prev[id]?.agent,
             model: prev[id]?.model || session.model || "default",
             effort: prev[id]?.effort || session.effort || "medium",
-            permissionMode: prev[id]?.permissionMode || session.permissionMode || "full"
+            permissionMode: prev[id]?.permissionMode || session.permissionMode || "full",
+            runningTaskId: session.runningTaskId
           }
         }))
+        if (session.runningTaskId && session.runningStatus) {
+          connectTaskStream(session.runningTaskId, id).catch((err) => {
+            console.error("Failed to reconnect running task:", err)
+          })
+        }
       }
     } catch (err) {
       console.error("Failed to load session:", err)
@@ -316,7 +487,7 @@ export function useChatSession(workspaceId: string) {
         chrome.storage.local.remove(`session_${workspaceId}`).catch(() => {})
       }
     }
-  }, [workspaceId])
+  }, [workspaceId, connectTaskStream])
 
   const send = async (params: {
     workspaceId: string
@@ -474,10 +645,17 @@ export function useChatSession(workspaceId: string) {
                     model: sourceState.model,
                     effort: sourceState.effort,
                     permissionMode: sourceState.permissionMode,
-                    lockedPage: sourceState.lockedPage
+                    lockedPage: sourceState.lockedPage,
+                    runningTaskId: chunk.taskId || sourceState.runningTaskId
                   }
                   return next
                 })
+                if (chunk.taskId) {
+                  abortControllersRef.current[newId] = controller
+                  if (sourceKey !== newId && abortControllersRef.current[sourceKey] === controller) {
+                    delete abortControllersRef.current[sourceKey]
+                  }
+                }
               } else if (chunk.type === "status" || chunk.type === "progress") {
                 const currentKey = activeId || tempSessionKey
                 setSessionStates((prev) => ({
@@ -541,6 +719,7 @@ export function useChatSession(workspaceId: string) {
         ...prev,
         [currentKey]: {
           ...prev[currentKey],
+          runningTaskId: undefined,
           statusText: finalStatusText
         }
       }))
@@ -591,6 +770,9 @@ export function useChatSession(workspaceId: string) {
         delete abortControllersRef.current[targetKey]
       }
       const currentKey = activeId || tempSessionKey
+      if (currentKey !== targetKey && abortControllersRef.current[currentKey] === controller) {
+        delete abortControllersRef.current[currentKey]
+      }
       setSessionStates((prev) => ({
         ...prev,
         [currentKey]: {
@@ -653,9 +835,40 @@ export function useChatSession(workspaceId: string) {
 
   const stop = useCallback((id?: string) => {
     const key = id !== undefined ? id : (sessionId || tempSessionKey)
+    const runningTaskId = sessionStatesRef.current[key]?.runningTaskId
+    if (runningTaskId) {
+      setSessionStates((prev) => {
+        const state = prev[key] || { messages: [], sending: true, statusText: "" }
+        return {
+          ...prev,
+          [key]: {
+            ...state,
+            statusText: "正在停止..."
+          }
+        }
+      })
+      stopRunningTask(runningTaskId).catch((err) => {
+        console.error("Failed to stop running task:", err)
+        abortControllersRef.current[key]?.abort()
+        delete abortControllersRef.current[key]
+        setSessionStates((prev) => {
+          const state = prev[key] || { messages: [], sending: false, statusText: "" }
+          return {
+            ...prev,
+            [key]: {
+              ...state,
+              sending: false,
+              runningTaskId: undefined,
+              statusText: `停止失败: ${err.message}`
+            }
+          }
+        })
+      })
+      return
+    }
     abortControllersRef.current[key]?.abort()
     delete abortControllersRef.current[key]
-  }, [sessionId])
+  }, [sessionId, tempSessionKey, stopRunningTask])
 
   return {
     workspaces,

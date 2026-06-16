@@ -99,4 +99,33 @@ describe("SessionStore", () => {
     expect(restored!.messages).toHaveLength(1)
     expect(restored!.messages[0].content).toBe("persist test")
   })
+
+  it("updates, lists, and clears running task state", async () => {
+    const session = await store.create("ws-1", "运行中会话")
+
+    await store.updateRunningTask(session.id, "task-1", "running")
+    const running = await store.get(session.id)
+    expect(running!.runningTaskId).toBe("task-1")
+    expect(running!.runningStatus).toBe("running")
+
+    const list = await store.listByWorkspace("ws-1")
+    expect(list[0].runningTaskId).toBe("task-1")
+    expect(list[0].runningStatus).toBe("running")
+
+    await store.clearRunningTask(session.id, "task-1")
+    const cleared = await store.get(session.id)
+    expect(cleared!.runningTaskId).toBeUndefined()
+    expect(cleared!.runningStatus).toBeUndefined()
+  })
+
+  it("clears stale running task state by task id", async () => {
+    const session = await store.create("ws-1", "运行中会话")
+    await store.updateRunningTask(session.id, "stale-task", "running")
+
+    await store.clearRunningTaskByTaskId("stale-task")
+
+    const cleared = await store.get(session.id)
+    expect(cleared!.runningTaskId).toBeUndefined()
+    expect(cleared!.runningStatus).toBeUndefined()
+  })
 })
