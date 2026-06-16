@@ -735,6 +735,9 @@ export function useChatSession(workspaceId: string) {
                     delete abortControllersRef.current[sourceKey]
                   }
                 }
+                if (sourceKey === tempSessionKey) {
+                  setSessionVersion((v) => v + 1)
+                }
               } else if (chunk.type === "status" || chunk.type === "progress") {
                 setSessionStates((prev) => ({
                   ...prev,
