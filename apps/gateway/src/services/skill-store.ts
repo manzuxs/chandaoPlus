@@ -95,7 +95,7 @@ function getBuiltinSkills(): Skill[] {
     {
       id: "estimate",
       name: "评估工期与修复方案",
-      icon: "⏱️",
+      icon: "clock",
       description: "/estimate",
       keywords: ["estimate", "评估", "工期", "修复", "方案", "pg", "gq", "xf"],
       promptTemplate: BUILTIN_ESTIMATE_PROMPT,
@@ -105,7 +105,7 @@ function getBuiltinSkills(): Skill[] {
     {
       id: "fix",
       name: "定位并修复问题",
-      icon: "🛠️",
+      icon: "gear",
       description: "/fix",
       keywords: ["fix", "repair", "修复", "定位", "根因", "改代码", "xf", "dw"],
       promptTemplate: BUILTIN_FIX_PROMPT,
@@ -115,7 +115,7 @@ function getBuiltinSkills(): Skill[] {
     {
       id: "verify",
       name: "修复验收检查",
-      icon: "✅",
+      icon: "check",
       description: "/verify",
       keywords: ["verify", "check", "验收", "检查", "回归", "测试", "jc", "ys"],
       promptTemplate: BUILTIN_VERIFY_PROMPT,

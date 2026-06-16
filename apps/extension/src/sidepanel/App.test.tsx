@@ -22,7 +22,7 @@ describe("App", () => {
             {
               id: "estimate",
               name: "评估工期与修复方案",
-              icon: "⏱️",
+              icon: "clock",
               description: "评估禅道 BUG 修复成本",
               keywords: ["estimate", "评估", "修复"],
               promptTemplate: "请评估这个问题的修复工期、风险和建议方案。\n输出结构化结果。",
@@ -32,7 +32,7 @@ describe("App", () => {
             {
               id: "fix",
               name: "定位并修复问题",
-              icon: "🛠️",
+              icon: "gear",
               description: "结合代码定位根因并修复问题",
               keywords: ["fix", "修复", "定位"],
               promptTemplate: "请结合代码定位根因并完成最小修复。",
@@ -42,7 +42,7 @@ describe("App", () => {
             {
               id: "verify",
               name: "修复验收检查",
-              icon: "✅",
+              icon: "check",
               description: "检查修复成果和回归风险",
               keywords: ["verify", "验收", "检查"],
               promptTemplate: "请检查修复成果是否满足禅道诉求。",
@@ -236,7 +236,7 @@ describe("App", () => {
             {
               id: "estimate",
               name: "评估工期与修复方案",
-              icon: "⏱️",
+              icon: "clock",
               description: "评估评估",
               keywords: [],
               promptTemplate: "请评估",
@@ -389,7 +389,7 @@ describe("App", () => {
             {
               id: "estimate",
               name: "评估工期",
-              icon: "⏱️",
+              icon: "clock",
               description: "评估",
               keywords: [],
               promptTemplate: "请评估",

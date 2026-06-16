@@ -2,6 +2,46 @@ import React, { useState } from "react"
 import type { Skill } from "@chandaoplus/shared"
 
 // SVG Icons
+const ClockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
+const BoltIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+)
+
+const renderSkillIcon = (skill: Skill) => {
+  const iconType = skill.icon || ""
+  if (iconType === "clock" || skill.id === "estimate") {
+    return <ClockIcon />
+  }
+  if (iconType === "gear" || skill.id === "fix") {
+    return <GearIcon />
+  }
+  if (iconType === "check" || skill.id === "verify") {
+    return <CheckIcon />
+  }
+  return <BoltIcon />
+}
+
 const XIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <line x1="18" y1="6" x2="6" y2="18" />
@@ -157,7 +197,7 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
             {builtinSkills.map((skill) => (
               <div key={skill.id} className="skill-list-item">
                 <div className="skill-list-item-main">
-                  <div className="skill-list-item-icon">{skill.icon}</div>
+                  <div className="skill-list-item-icon">{renderSkillIcon(skill)}</div>
                   <div>
                     <div className="skill-list-item-name">{skill.name}</div>
                     <div className="skill-list-item-id">/{skill.id}</div>
@@ -185,7 +225,7 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
             {customSkills.map((skill) => (
               <div key={skill.id} className="skill-list-item">
                 <div className="skill-list-item-main">
-                  <div className="skill-list-item-icon">{skill.icon}</div>
+                  <div className="skill-list-item-icon">{renderSkillIcon(skill)}</div>
                   <div>
                     <div className="skill-list-item-name">{skill.name}</div>
                     <div className="skill-list-item-id">/{skill.id}</div>
@@ -248,11 +288,16 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
                 placeholder="显示名称"
                 required
               />
-              <input
-                value={draft.icon}
+              <select
+                value={draft.icon || "bolt"}
                 onChange={(e) => setDraft((prev) => ({ ...prev, icon: e.target.value }))}
-                placeholder="图标 (emoji 或字符)"
-              />
+                aria-label="图标"
+              >
+                <option value="clock">时钟 (Clock)</option>
+                <option value="gear">齿轮 (Gear)</option>
+                <option value="check">勾勾 (Check)</option>
+                <option value="bolt">闪电 (Bolt)</option>
+              </select>
               <input
                 value={draft.description}
                 onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}

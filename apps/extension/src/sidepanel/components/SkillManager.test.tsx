@@ -6,7 +6,7 @@ import { SkillManager } from "./SkillManager"
 const builtinSkill: Skill = {
   id: "estimate",
   name: "评估工期与修复方案",
-  icon: "⏱️",
+  icon: "clock",
   description: "/estimate",
   keywords: ["estimate", "评估"],
   promptTemplate: "内置评估提示词",
@@ -17,7 +17,7 @@ const builtinSkill: Skill = {
 const customSkill: Skill = {
   id: "triage",
   name: "问题分诊",
-  icon: "T",
+  icon: "bolt",
   description: "快速判断问题归属",
   keywords: ["triage"],
   promptTemplate: "请进行问题分诊",

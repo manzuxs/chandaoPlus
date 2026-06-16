@@ -17,12 +17,12 @@
 1. Open `bug-view-123.html`
 2. Open the sidepanel
 3. Choose a workspace
-4. Click `评估`
-5. Confirm the streamed response includes工期 and修复建议
+4. Click `评估工期与修复方案`
+5. Confirm the streamed response includes "工期" and "修复建议"
 
 ## Smoke Test: ZenTao List
 1. Open `bug-browse-1.html`
 2. Check two bug rows
 3. Open the sidepanel
-4. Click `评估`
+4. Click `评估工期与修复方案`
 5. Confirm the sidepanel shows batch progress and a combined answer
