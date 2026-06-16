@@ -108,6 +108,13 @@ describe("POST /api/chat/stream", () => {
         { role: "assistant", content: "历史回答：先定位待报价详情页的国际化字段。" },
       ] as any[],
     }
+    const otherSession = {
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      workspaceId: "project-a",
+      messages: [
+        { role: "user", content: "另一个会话的敏感历史" },
+      ] as any[],
+    }
     let conversationText = ""
 
     try {
@@ -119,7 +126,7 @@ describe("POST /api/chat/stream", () => {
           get: async () => undefined
         },
         sessionStore: {
-          get: async (sid: string) => sid === existingSession.id ? existingSession : undefined,
+          get: async (sid: string) => sid === existingSession.id ? existingSession : sid === otherSession.id ? otherSession : undefined,
           create: async () => ({ id: "new-session-id" }),
           appendMessage: async (_sid: string, msg: any) => { existingSession.messages.push(msg) },
           addContextBundleDir: async () => {},
@@ -152,6 +159,7 @@ describe("POST /api/chat/stream", () => {
       expect(conversationText).toContain("历史提问：这个禅道 BUG 怎么处理？")
       expect(conversationText).toContain("历史回答：先定位待报价详情页的国际化字段。")
       expect(conversationText).not.toContain("当前问题：继续评估")
+      expect(conversationText).not.toContain("另一个会话的敏感历史")
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true })
     }

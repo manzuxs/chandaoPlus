@@ -1,22 +1,31 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill } from "@chandaoplus/shared"
+import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
+
+type SessionState = {
+  messages: ChatMessage[]
+  sending: boolean
+  statusText: string
+  agent?: "claude-code" | "codex" | "opencode"
+  model?: string
+  effort?: "low" | "medium" | "high" | "xhigh" | "max"
+  permissionMode?: "ask" | "auto" | "full" | "custom"
+  lockedPage?: PageCapture
+}
+
+const getBugId = (page?: PageCapture) => {
+  if (page?.metadata?.pageKind !== "zentao-bug-detail") return undefined
+  return typeof page.metadata.bugId === "string" ? page.metadata.bugId : undefined
+}
 
 export function useChatSession(workspaceId: string) {
   const [workspaces, setWorkspaces] = useState<WorkspaceProfile[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
-  const [sessionStates, setSessionStates] = useState<Record<string, {
-    messages: ChatMessage[]
-    sending: boolean
-    statusText: string
-    agent?: "claude-code" | "codex" | "opencode"
-    model?: string
-    effort?: "low" | "medium" | "high" | "xhigh" | "max"
-    permissionMode?: "ask" | "auto" | "full" | "custom"
-  }>>({})
+  const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
   const abortControllersRef = useRef<Record<string, AbortController>>({})
+  const tempSessionKey = workspaceId ? `temp:${workspaceId}` : "temp"
   // 用 ref 同步持有最新 sessionStates，避免在异步回调里读到旧快照
   const sessionStatesRef = useRef<typeof sessionStates>({})
   // 每次渲染时更新 ref（不触发重新渲染，仅为同步读取用）
@@ -114,7 +123,7 @@ export function useChatSession(workspaceId: string) {
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
       const handleProgressMessage = (message: any) => {
         if (message.type === "CAPTURE_PROGRESS") {
-          const currentActiveId = sessionId || "temp"
+          const currentActiveId = sessionId || tempSessionKey
           setSessionStates((prev) => {
             const existing = prev[currentActiveId] || {}
             return {
@@ -134,7 +143,7 @@ export function useChatSession(workspaceId: string) {
         chrome.runtime.onMessage.removeListener(handleProgressMessage)
       }
     }
-  }, [sessionId])
+  }, [sessionId, tempSessionKey])
 
   const addWorkspace = async (profile: WorkspaceProfile) => {
     try {
@@ -224,20 +233,20 @@ export function useChatSession(workspaceId: string) {
   }, [sessionId, workspaceId])
 
   const newSession = useCallback(() => {
-    // 放弃当前新会话时，如果 temp 正在发送，将其 abort
-    abortControllersRef.current["temp"]?.abort()
-    delete abortControllersRef.current["temp"]
+    // 放弃当前工作空间的新会话时，如果临时会话正在发送，将其 abort
+    abortControllersRef.current[tempSessionKey]?.abort()
+    delete abortControllersRef.current[tempSessionKey]
 
     setSessionId(null)
     setSessionStates((prev) => {
       const next = { ...prev }
-      delete next.temp
+      delete next[tempSessionKey]
       return next
     })
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
       Promise.resolve(chrome.storage.local.remove(`session_${workspaceId}`)).catch(() => {})
     }
-  }, [workspaceId])
+  }, [workspaceId, tempSessionKey])
 
   const setSessionConfig = useCallback((config: {
     agent?: "claude-code" | "codex" | "opencode"
@@ -245,7 +254,7 @@ export function useChatSession(workspaceId: string) {
     effort?: "low" | "medium" | "high" | "xhigh" | "max"
     permissionMode?: "ask" | "auto" | "full" | "custom"
   }) => {
-    const key = sessionId || "temp"
+    const key = sessionId || tempSessionKey
     setSessionStates((prev) => {
       const state = prev[key] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
       return {
@@ -256,7 +265,7 @@ export function useChatSession(workspaceId: string) {
         }
       }
     })
-  }, [sessionId])
+  }, [sessionId, tempSessionKey])
 
   const loadSession = useCallback(async (id: string) => {
     // 先切换 sessionId，让 UI 立即响应
@@ -316,7 +325,7 @@ export function useChatSession(workspaceId: string) {
     input: string
   }) => {
     let activeId = sessionId
-    const targetKey = activeId || "temp"
+    const targetKey = activeId || tempSessionKey
     
     // Check if currently sending for this specific targetKey
     if (sessionStates[targetKey]?.sending) return
@@ -338,6 +347,7 @@ export function useChatSession(workspaceId: string) {
 
     let isAssistantMsgAdded = true
     let assistantMsg: ChatMessage = { role: "assistant", content: "" }
+    let finalStatusText = ""
 
     // 取消上一个针对该会话的请求（如有）
     abortControllersRef.current[targetKey]?.abort()
@@ -346,14 +356,53 @@ export function useChatSession(workspaceId: string) {
 
     try {
       // Step 1: Capture page
-      const pageCapture = await captureActiveTabPage()
+      const capturedPage = await captureActiveTabPage()
+      const latestState = sessionStatesRef.current[targetKey]
+      const lockedBugId = getBugId(latestState?.lockedPage)
+      const capturedBugId = getBugId(capturedPage)
+      let pageCapture = capturedPage
+
+      if (lockedBugId && capturedBugId && capturedBugId !== lockedBugId) {
+        const statusText = `当前会话绑定 BUG #${lockedBugId}，但当前页面是 BUG #${capturedBugId}。请新建会话或回到原 BUG 页面。`
+        setSessionStates((prev) => {
+          const state = prev[targetKey] || { messages: [], sending: false, statusText: "" }
+          const nextMessages = [...state.messages]
+          const last = nextMessages[nextMessages.length - 1]
+          if (last?.role === "assistant" && !last.content) {
+            nextMessages.pop()
+          }
+          const nextLast = nextMessages[nextMessages.length - 1]
+          if (nextLast?.role === "user" && nextLast.content === userMsg.content) {
+            nextMessages.pop()
+          }
+          return {
+            ...prev,
+            [targetKey]: {
+              ...state,
+              messages: nextMessages,
+              sending: false,
+              statusText
+            }
+          }
+        })
+        return
+      }
+
+      if (lockedBugId && latestState?.lockedPage && !capturedBugId) {
+        pageCapture = latestState.lockedPage
+        finalStatusText = `使用已锁定 BUG #${lockedBugId} 上下文`
+      }
 
       setSessionStates((prev) => {
-        const key = activeId || "temp"
+        const key = activeId || tempSessionKey
+        const state = prev[key]
         return {
           ...prev,
           [key]: {
-            ...prev[key],
+            ...state,
+            lockedPage: capturedBugId && (!lockedBugId || capturedBugId === lockedBugId)
+              ? capturedPage
+              : state?.lockedPage,
             statusText: "正在连接网关..."
           }
         }
@@ -361,7 +410,7 @@ export function useChatSession(workspaceId: string) {
 
       const activeState = activeId
         ? (sessionStates[activeId] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
-        : (sessionStates["temp"] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
+        : (sessionStates[tempSessionKey] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
 
       const payload: Record<string, unknown> = {
         workspaceId: params.workspaceId,
@@ -407,15 +456,15 @@ export function useChatSession(workspaceId: string) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
               if (chunk.type === "meta" && chunk.sessionId) {
-                const sourceKey = activeId || "temp"
+                const sourceKey = activeId || tempSessionKey
                 const newId = chunk.sessionId
                 activeId = newId
                 setSessionId(newId)
                 setSessionStates((prev) => {
                   const sourceState = prev[sourceKey] || { messages: [], sending: true, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
                   const next = { ...prev }
-                  if (sourceKey === "temp") {
-                    delete next.temp
+                  if (sourceKey === tempSessionKey) {
+                    delete next[tempSessionKey]
                   }
                   next[newId] = {
                     messages: sourceState.messages,
@@ -424,12 +473,13 @@ export function useChatSession(workspaceId: string) {
                     agent: params.agent,
                     model: sourceState.model,
                     effort: sourceState.effort,
-                    permissionMode: sourceState.permissionMode
+                    permissionMode: sourceState.permissionMode,
+                    lockedPage: sourceState.lockedPage
                   }
                   return next
                 })
               } else if (chunk.type === "status" || chunk.type === "progress") {
-                const currentKey = activeId || "temp"
+                const currentKey = activeId || tempSessionKey
                 setSessionStates((prev) => ({
                   ...prev,
                   [currentKey]: {
@@ -439,7 +489,7 @@ export function useChatSession(workspaceId: string) {
                 }))
               } else if (chunk.type === "text") {
                 assistantMsg.content += chunk.content
-                const currentKey = activeId || "temp"
+                const currentKey = activeId || tempSessionKey
                 setSessionStates((prev) => {
                   const state = prev[currentKey] || { messages: [], sending: true, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
                   const nextMessages = [...state.messages]
@@ -458,7 +508,7 @@ export function useChatSession(workspaceId: string) {
                   }
                 })
               } else if (chunk.type === "error") {
-                const currentKey = activeId || "temp"
+                const currentKey = activeId || tempSessionKey
                 assistantMsg.content += `\n[错误: ${chunk.content}]`
                 setSessionStates((prev) => {
                   const state = prev[currentKey] || { messages: [], sending: true, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
@@ -486,18 +536,18 @@ export function useChatSession(workspaceId: string) {
         }
       }
 
-      const currentKey = activeId || "temp"
+      const currentKey = activeId || tempSessionKey
       setSessionStates((prev) => ({
         ...prev,
         [currentKey]: {
           ...prev[currentKey],
-          statusText: ""
+          statusText: finalStatusText
         }
       }))
     } catch (err: any) {
       // fetch 被 abort 时静默结束，不报错
       if (err.name === "AbortError") {
-        const currentKey = activeId || "temp"
+        const currentKey = activeId || tempSessionKey
         setSessionStates((prev) => {
           const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
           const nextMessages = [...state.messages]
@@ -511,7 +561,7 @@ export function useChatSession(workspaceId: string) {
         })
       } else {
         console.error(err)
-        const currentKey = activeId || "temp"
+        const currentKey = activeId || tempSessionKey
         setSessionStates((prev) => {
           const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
           const nextMessages = [...state.messages]
@@ -540,7 +590,7 @@ export function useChatSession(workspaceId: string) {
       if (abortControllersRef.current[targetKey] === controller) {
         delete abortControllersRef.current[targetKey]
       }
-      const currentKey = activeId || "temp"
+      const currentKey = activeId || tempSessionKey
       setSessionStates((prev) => ({
         ...prev,
         [currentKey]: {
@@ -591,7 +641,7 @@ export function useChatSession(workspaceId: string) {
   // Derive active session state
   const activeState = sessionId
     ? (sessionStates[sessionId] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" })
-    : (sessionStates["temp"] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" })
+    : (sessionStates[tempSessionKey] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" })
 
   const messages = activeState.messages
   const sending = activeState.sending
@@ -602,7 +652,7 @@ export function useChatSession(workspaceId: string) {
   const permissionMode = activeState.permissionMode || "full"
 
   const stop = useCallback((id?: string) => {
-    const key = id !== undefined ? id : (sessionId || "temp")
+    const key = id !== undefined ? id : (sessionId || tempSessionKey)
     abortControllersRef.current[key]?.abort()
     delete abortControllersRef.current[key]
   }, [sessionId])

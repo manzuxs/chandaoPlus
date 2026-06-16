@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
+import type { PageCapture } from "@chandaoplus/shared"
 import { App } from "./App"
 
 describe("App", () => {
@@ -675,6 +676,250 @@ describe("App", () => {
 
     await screen.findByText("继续输出")
     expect(screen.getByText("开始修复")).toBeTruthy()
+  })
+
+  it("does not leak unsaved temp messages across workspaces", async () => {
+    const pendingStream = new ReadableStream({ start() {} })
+    const customFetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            { id: "ws-a", label: "工作空间 A", rootPath: "/ws-a" },
+            { id: "ws-b", label: "工作空间 B", rootPath: "/ws-b" }
+          ])
+        })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/chat/stream")) {
+        return Promise.resolve({ ok: true, body: pendingStream })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+
+    const storageGetMock = vi.fn().mockImplementation((keys: any, callback?: any) => {
+      const result: Record<string, any> = {}
+      if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) {
+        result.lastWorkspaceId = "ws-a"
+      }
+      if (typeof callback === "function") {
+        callback(result)
+      }
+      return Promise.resolve(result)
+    })
+
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn().mockImplementation((message: { type: string }, callback: (response: any) => void) => {
+          if (message.type === "CAPTURE_ACTIVE_TAB") {
+            callback({
+              url: "https://zentao.local/bug-view-1.html",
+              title: "BUG #1",
+              markdown: "# BUG #1\n\n页面白屏",
+              images: [],
+              metadata: {}
+            })
+          }
+        }),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: storageGetMock,
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    await screen.findByText("工作空间 A")
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: "A 的临时问题" } })
+    fireEvent.click(screen.getByRole("button", { name: "发送" }))
+    await screen.findByText("A 的临时问题")
+
+    fireEvent.click(screen.getByTitle("工作空间 A"))
+    fireEvent.click(await screen.findByText("工作空间 B"))
+
+    await screen.findByText("工作空间 B")
+    await waitFor(() => {
+      expect(screen.queryByText("A 的临时问题")).toBeNull()
+    })
+  })
+
+  it("uses the locked bug context when sending after leaving the bug detail page", async () => {
+    let activeCapture: PageCapture = {
+      url: "https://zentao.local/index.php?m=bug&f=view&bugID=101",
+      title: "BUG #101",
+      markdown: "# BUG #101\n\n真实 BUG 内容",
+      images: [],
+      metadata: { pageKind: "zentao-bug-detail", bugId: "101" }
+    }
+    const sentPages: any[] = []
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/chat/stream")) {
+        sentPages.push(JSON.parse(options.body).page)
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"done","content":""}\n'))
+              controller.close()
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn().mockImplementation((message: { type: string }, callback: (response: any) => void) => {
+          if (message.type === "CAPTURE_ACTIVE_TAB") callback(activeCapture)
+        }),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result = Array.isArray(keys) && keys.includes("lastWorkspaceId") ? { lastWorkspaceId: "ws-1" } : {}
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+    await screen.findByText("工作空间一")
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
+    const sendBtn = screen.getByRole("button", { name: "发送" })
+    fireEvent.change(textarea, { target: { value: "第一次发送" } })
+    fireEvent.click(sendBtn)
+    await waitFor(() => expect(sentPages).toHaveLength(1))
+
+    activeCapture = {
+      url: "https://zentao.local/my",
+      title: "我的地盘",
+      markdown: "# 我的地盘",
+      images: [],
+      metadata: {}
+    }
+    fireEvent.change(textarea, { target: { value: "离开 BUG 后继续问" } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => expect(sentPages).toHaveLength(2))
+    expect(sentPages[1].metadata.bugId).toBe("101")
+    expect(sentPages[1].markdown).toContain("真实 BUG 内容")
+    await screen.findByText("使用已锁定 BUG #101 上下文")
+  })
+
+  it("blocks sending when the active bug page differs from the locked bug context", async () => {
+    let activeCapture: PageCapture = {
+      url: "https://zentao.local/index.php?m=bug&f=view&bugID=101",
+      title: "BUG #101",
+      markdown: "# BUG #101",
+      images: [],
+      metadata: { pageKind: "zentao-bug-detail", bugId: "101" }
+    }
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      if (url.includes("/api/chat/stream")) {
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"done","content":""}\n'))
+              controller.close()
+            }
+          })
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn().mockImplementation((message: { type: string }, callback: (response: any) => void) => {
+          if (message.type === "CAPTURE_ACTIVE_TAB") callback(activeCapture)
+        }),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: vi.fn().mockImplementation((keys: any, callback?: any) => {
+            const result = Array.isArray(keys) && keys.includes("lastWorkspaceId") ? { lastWorkspaceId: "ws-1" } : {}
+            if (typeof callback === "function") callback(result)
+            return Promise.resolve(result)
+          }),
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+    await screen.findByText("工作空间一")
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
+    const sendBtn = screen.getByRole("button", { name: "发送" })
+    fireEvent.change(textarea, { target: { value: "锁定 BUG 101" } })
+    fireEvent.click(sendBtn)
+    await waitFor(() => expect(customFetchMock.mock.calls.filter(([url]) => String(url).includes("/api/chat/stream"))).toHaveLength(1))
+
+    activeCapture = {
+      url: "https://zentao.local/index.php?m=bug&f=view&bugID=202",
+      title: "BUG #202",
+      markdown: "# BUG #202",
+      images: [],
+      metadata: { pageKind: "zentao-bug-detail", bugId: "202" }
+    }
+    fireEvent.change(textarea, { target: { value: "错误 BUG 上继续问" } })
+    fireEvent.click(sendBtn)
+
+    await screen.findByText("当前会话绑定 BUG #101，但当前页面是 BUG #202。请新建会话或回到原 BUG 页面。")
+    expect(customFetchMock.mock.calls.filter(([url]) => String(url).includes("/api/chat/stream"))).toHaveLength(1)
   })
 
   it("renders effort values dynamically through a single-level card", async () => {
