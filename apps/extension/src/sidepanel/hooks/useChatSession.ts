@@ -58,12 +58,42 @@ export function useChatSession(workspaceId: string) {
   // 每次渲染时更新 ref（不触发重新渲染，仅为同步读取用）
   sessionStatesRef.current = sessionStates
 
+  const lastSeqRef = useRef<Record<string, number>>({})
+
+  const reloadSessionMessages = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`)
+      if (res.ok) {
+        const session = await res.json()
+        if (session.messages) {
+          setSessionStates((prev) => ({
+            ...prev,
+            [id]: {
+              ...(prev[id] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }),
+              messages: session.messages,
+              runningTaskId: session.runningTaskId
+            }
+          }))
+        }
+      }
+    } catch (err) {
+      console.error("Failed to reload session messages:", err)
+    }
+  }, [])
+
+
+
   const connectTaskStream = useCallback(async (taskId: string, key: string) => {
     if (abortControllersRef.current[key]) return
 
     const controller = new AbortController()
     abortControllersRef.current[key] = controller
-    let assistantContent = ""
+    const lastSeq = lastSeqRef.current[key] ?? -1
+    const fromSeq = lastSeq >= 0 ? lastSeq + 1 : 0
+
+    const latestState = sessionStatesRef.current[key]
+    const lastMsg = latestState?.messages[latestState.messages.length - 1]
+    let assistantContent = (fromSeq > 0 && lastMsg?.role === "assistant") ? lastMsg.content : ""
 
     setSessionStates((prev) => {
       const state = prev[key] || { messages: [], sending: false, statusText: "" }
@@ -78,16 +108,28 @@ export function useChatSession(workspaceId: string) {
       }
     })
 
+    let gotTerminalEvent = false
+
     try {
-      const response = await fetch(`http://127.0.0.1:3210/api/chat/tasks/${taskId}/stream`, {
+      const response = await fetch(`http://127.0.0.1:3210/api/chat/tasks/${taskId}/stream?from=${fromSeq}`, {
         signal: controller.signal
       })
       if (!response.ok) {
+        if (response.status === 404) {
+          await reloadSessionMessages(key)
+        }
         const errorMsg = await response.json().catch(() => ({ error: "Task stream error" }))
         throw new Error(errorMsg.error || `HTTP ${response.status}`)
       }
 
       await readSseStream(response, (chunk) => {
+        if (typeof chunk.seq === "number") {
+          lastSeqRef.current[key] = chunk.seq
+        }
+        if (chunk.type === "done" || chunk.type === "error") {
+          gotTerminalEvent = true
+        }
+
         if (chunk.type === "status" || chunk.type === "progress") {
           setSessionStates((prev) => {
             const state = prev[key] || { messages: [], sending: true, statusText: "" }
@@ -135,41 +177,68 @@ export function useChatSession(workspaceId: string) {
         }
       })
 
-      setSessionStates((prev) => {
-        const state = prev[key] || { messages: [], sending: false, statusText: "" }
-        return {
-          ...prev,
-          [key]: {
-            ...state,
-            sending: false,
-            runningTaskId: undefined,
-            statusText: ""
-          }
-        }
-      })
     } catch (err: any) {
-      setSessionStates((prev) => {
-        const state = prev[key] || { messages: [], sending: false, statusText: "" }
-        const statusText = err.name === "AbortError"
-          ? (state.statusText.startsWith("停止失败") ? state.statusText : state.statusText)
-          : `任务连接断开: ${err.message}`
-        return {
-          ...prev,
-          [key]: {
-            ...state,
-            sending: false,
-            runningTaskId: undefined,
-            statusText
+      if (err.name !== "AbortError") {
+        setSessionStates((prev) => {
+          const state = prev[key] || { messages: [], sending: false, statusText: "" }
+          return {
+            ...prev,
+            [key]: {
+              ...state,
+              statusText: `任务连接断开: ${err.message}`
+            }
           }
-        }
-      })
+        })
+      }
     } finally {
       if (abortControllersRef.current[key] === controller) {
         delete abortControllersRef.current[key]
       }
+      const isAborted = controller.signal.aborted
+      const currentLatestState = sessionStatesRef.current[key]
+      const currentTaskId = currentLatestState?.runningTaskId
+
+      if (!gotTerminalEvent && currentTaskId && !isAborted) {
+        setSessionStates((prev) => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            statusText: "连接断开，正在尝试重连..."
+          }
+        }))
+        setTimeout(() => {
+          const curState = sessionStatesRef.current[key]
+          if (curState?.runningTaskId === currentTaskId && !controller.signal.aborted) {
+            connectTaskStream(currentTaskId, key).catch(console.error)
+          }
+        }, 1500)
+      } else {
+        if (gotTerminalEvent || isAborted) {
+          setSessionStates((prev) => {
+            const state = prev[key] || { messages: [], sending: false, statusText: "" }
+            return {
+              ...prev,
+              [key]: {
+                ...state,
+                sending: false,
+                runningTaskId: undefined,
+                statusText: isAborted && state.statusText.startsWith("停止失败") ? state.statusText : ""
+              }
+            }
+          })
+        } else {
+          setSessionStates((prev) => ({
+            ...prev,
+            [key]: {
+              ...prev[key],
+              sending: false
+            }
+          }))
+        }
+      }
       setSessionVersion((v) => v + 1)
     }
-  }, [])
+  }, [reloadSessionMessages])
 
   const stopRunningTask = useCallback(async (taskId: string) => {
     const response = await fetch(`http://127.0.0.1:3210/api/chat/tasks/${taskId}/stop`, { method: "POST" })
@@ -516,6 +585,8 @@ export function useChatSession(workspaceId: string) {
       }
     })
 
+
+    let gotTerminalEvent = false
     let isAssistantMsgAdded = true
     let assistantMsg: ChatMessage = { role: "assistant", content: "" }
     let finalStatusText = ""
@@ -626,6 +697,14 @@ export function useChatSession(workspaceId: string) {
           if (trimmed.startsWith("data: ")) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
+              const currentKey = activeId || tempSessionKey
+              if (typeof chunk.seq === "number") {
+                lastSeqRef.current[currentKey] = chunk.seq
+              }
+              if (chunk.type === "done" || chunk.type === "error") {
+                gotTerminalEvent = true
+              }
+
               if (chunk.type === "meta" && chunk.sessionId) {
                 const sourceKey = activeId || tempSessionKey
                 const newId = chunk.sessionId
@@ -657,7 +736,6 @@ export function useChatSession(workspaceId: string) {
                   }
                 }
               } else if (chunk.type === "status" || chunk.type === "progress") {
-                const currentKey = activeId || tempSessionKey
                 setSessionStates((prev) => ({
                   ...prev,
                   [currentKey]: {
@@ -667,7 +745,6 @@ export function useChatSession(workspaceId: string) {
                 }))
               } else if (chunk.type === "text") {
                 assistantMsg.content += chunk.content
-                const currentKey = activeId || tempSessionKey
                 setSessionStates((prev) => {
                   const state = prev[currentKey] || { messages: [], sending: true, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
                   const nextMessages = [...state.messages]
@@ -686,7 +763,6 @@ export function useChatSession(workspaceId: string) {
                   }
                 })
               } else if (chunk.type === "error") {
-                const currentKey = activeId || tempSessionKey
                 assistantMsg.content += `\n[错误: ${chunk.content}]`
                 setSessionStates((prev) => {
                   const state = prev[currentKey] || { messages: [], sending: true, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
@@ -713,16 +789,6 @@ export function useChatSession(workspaceId: string) {
           }
         }
       }
-
-      const currentKey = activeId || tempSessionKey
-      setSessionStates((prev) => ({
-        ...prev,
-        [currentKey]: {
-          ...prev[currentKey],
-          runningTaskId: undefined,
-          statusText: finalStatusText
-        }
-      }))
     } catch (err: any) {
       // fetch 被 abort 时静默结束，不报错
       if (err.name === "AbortError") {
@@ -773,6 +839,41 @@ export function useChatSession(workspaceId: string) {
       if (currentKey !== targetKey && abortControllersRef.current[currentKey] === controller) {
         delete abortControllersRef.current[currentKey]
       }
+
+      const isAborted = controller.signal.aborted
+      const currentLatestState = sessionStatesRef.current[currentKey]
+      const currentTaskId = currentLatestState?.runningTaskId
+
+      if (!gotTerminalEvent && currentTaskId && !isAborted) {
+        setSessionStates((prev) => ({
+          ...prev,
+          [currentKey]: {
+            ...prev[currentKey],
+            statusText: "连接断开，正在尝试重连..."
+          }
+        }))
+        setTimeout(() => {
+          const curState = sessionStatesRef.current[currentKey]
+          if (curState?.runningTaskId === currentTaskId && !controller.signal.aborted) {
+            connectTaskStream(currentTaskId, currentKey).catch(console.error)
+          }
+        }, 1500)
+      } else {
+        if (gotTerminalEvent || isAborted) {
+          setSessionStates((prev) => {
+            const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
+            return {
+              ...prev,
+              [currentKey]: {
+                ...state,
+                runningTaskId: undefined,
+                statusText: isAborted && state.statusText.startsWith("停止失败") ? state.statusText : finalStatusText
+              }
+            }
+          })
+        }
+      }
+
       setSessionStates((prev) => ({
         ...prev,
         [currentKey]: {

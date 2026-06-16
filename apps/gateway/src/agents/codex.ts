@@ -30,6 +30,15 @@ function streamProcessCodex(
     child.stdin.end()
 
     let stdoutBuffer = ""
+    let textBuffer = ""
+    const logAgentText = (text: string) => {
+      textBuffer += text
+      const lines = textBuffer.split("\n")
+      textBuffer = lines.pop() || ""
+      for (const line of lines) {
+        logAgentChunk("Codex", { type: "text", content: line })
+      }
+    }
     child.stdout.on("data", (chunk) => {
       stdoutBuffer += chunk.toString()
       const lines = stdoutBuffer.split("\n")
@@ -43,10 +52,10 @@ function streamProcessCodex(
           if (event.type === "thread.started" && event.thread_id) {
             onThreadStarted(event.thread_id)
           } else if (event.type === "text" && event.content) {
-            logAgentChunk("Codex", { type: "text", content: event.content })
+            logAgentText(event.content)
             onChunk({ type: "text", content: event.content })
           } else if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
-            logAgentChunk("Codex", { type: "text", content: event.item.text })
+            logAgentText(event.item.text)
             onChunk({ type: "text", content: event.item.text })
           } else if (event.type === "error" && event.message) {
             logAgentChunk("Codex", { type: "error", content: event.message })
@@ -56,7 +65,7 @@ function streamProcessCodex(
             onChunk({ type: "error", content: event.error.message })
           }
         } catch {
-          logAgentChunk("Codex", { type: "text", content: trimmed + "\n" })
+          logAgentText(trimmed + "\n")
           onChunk({ type: "text", content: trimmed + "\n" })
         }
       }
@@ -67,6 +76,9 @@ function streamProcessCodex(
     })
 
     child.on("close", (code) => {
+      if (textBuffer) {
+        logAgentChunk("Codex", { type: "text", content: textBuffer })
+      }
       if (signal?.aborted) {
         resolve()
       } else if (code === 0) {

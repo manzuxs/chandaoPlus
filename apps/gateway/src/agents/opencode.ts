@@ -37,6 +37,15 @@ function streamProcessOpencode(
     let stderrBytes = 0
     let textChunks = 0
     const eventCounts: Record<string, number> = {}
+    let textBuffer = ""
+    const logAgentText = (text: string) => {
+      textBuffer += text
+      const lines = textBuffer.split("\n")
+      textBuffer = lines.pop() || ""
+      for (const line of lines) {
+        logAgentChunk("OpenCode", { type: "text", content: line })
+      }
+    }
     const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
     console.log(`[OpenCode start] pid=${child.pid ?? "unknown"} cwd=${cwd} command=${command} args=${JSON.stringify(args)}`)
     const heartbeat = setInterval(() => {
@@ -65,7 +74,7 @@ function streamProcessOpencode(
         }
         if (event.type === "text" && event.part && event.part.text) {
           textChunks += 1
-          logAgentChunk("OpenCode", { type: "text", content: event.part.text })
+          logAgentText(event.part.text)
           onChunk({ type: "text", content: event.part.text })
         } else if (event.type === "step_start") {
           console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
@@ -80,7 +89,7 @@ function streamProcessOpencode(
         }
       } catch {
         lastActivityAt = Date.now()
-        logAgentChunk("OpenCode", { type: "text", content: trimmed + "\n" })
+        logAgentText(trimmed + "\n")
         onChunk({ type: "text", content: trimmed + "\n" })
       }
     }
@@ -113,6 +122,9 @@ function streamProcessOpencode(
       if (stdoutBuffer.trim()) {
         parseStdoutLine(stdoutBuffer)
         stdoutBuffer = ""
+      }
+      if (textBuffer) {
+        logAgentChunk("OpenCode", { type: "text", content: textBuffer })
       }
       console.log(`[OpenCode close] code=${code} signalAborted=${signal?.aborted ? "yes" : "no"} elapsedMs=${Date.now() - startedAt} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes} textChunks=${textChunks} events=${JSON.stringify(eventCounts)}`)
       if (signal?.aborted) {

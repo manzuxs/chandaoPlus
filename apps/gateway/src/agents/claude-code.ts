@@ -29,6 +29,16 @@ function streamProcess(
     child.stdin.end()
 
     let stdoutBuffer = ""
+    let textBuffer = ""
+    const logAgentText = (text: string) => {
+      textBuffer += text
+      const lines = textBuffer.split("\n")
+      textBuffer = lines.pop() || ""
+      for (const line of lines) {
+        logAgentChunk("Claude Code", { type: "text", content: line })
+      }
+    }
+
     child.stdout.on("data", (chunk) => {
       stdoutBuffer += chunk.toString()
       const lines = stdoutBuffer.split("\n")
@@ -44,7 +54,7 @@ function streamProcess(
             if (innerEvent) {
               if (innerEvent.type === "content_block_delta" && innerEvent.delta) {
                 if (innerEvent.delta.type === "text_delta" && innerEvent.delta.text) {
-                  logAgentChunk("Claude Code", { type: "text", content: innerEvent.delta.text })
+                  logAgentText(innerEvent.delta.text)
                   onChunk({ type: "text", content: innerEvent.delta.text })
                 } else if (innerEvent.delta.type === "thinking_delta" && innerEvent.delta.thinking) {
                   logAgentChunk("Claude Code", { type: "status", content: "思考中..." })
@@ -60,7 +70,7 @@ function streamProcess(
             onChunk({ type: "error", content: event.message })
           }
         } catch {
-          logAgentChunk("Claude Code", { type: "text", content: trimmed + "\n" })
+          logAgentText(trimmed + "\n")
           onChunk({ type: "text", content: trimmed + "\n" })
         }
       }
@@ -74,6 +84,9 @@ function streamProcess(
     })
 
     child.on("close", (code) => {
+      if (textBuffer) {
+        logAgentChunk("Claude Code", { type: "text", content: textBuffer })
+      }
       if (signal?.aborted) {
         resolve()
       } else if (code === 0) {

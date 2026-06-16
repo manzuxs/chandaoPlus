@@ -29,11 +29,24 @@ export function registerChatRoutes(app: any, deps: any) {
   const tasks = deps.chatTaskStore || new Map<string, ChatTask>()
 
   const emitTaskEvent = (task: ChatTask, chunk: any) => {
-    task.events.push(chunk)
+    const seq = task.events.length
+    const eventWithSeq = { ...chunk, seq }
+    task.events.push(eventWithSeq)
     for (const observer of task.observers) {
-      writeSse(observer, chunk)
+      writeSse(observer, eventWithSeq)
     }
   }
+
+  const heartbeatInterval = setInterval(() => {
+    for (const task of tasks.values()) {
+      for (const observer of task.observers) {
+        if (!observer.writableEnded && !observer.destroyed) {
+          observer.write(":\n\n")
+        }
+      }
+    }
+  }, 15000)
+  heartbeatInterval.unref?.()
 
   const finishTask = async (task: ChatTask, status: TaskStatus) => {
     task.status = status
@@ -115,7 +128,7 @@ export function registerChatRoutes(app: any, deps: any) {
         }
       })
       const finalStatus: TaskStatus = task.stopRequested || task.abortController.signal.aborted ? "stopped" : "completed"
-      emitTaskEvent(task, { type: finalStatus === "stopped" ? "status" : "done", content: finalStatus === "stopped" ? "已停止" : "" })
+      emitTaskEvent(task, { type: "done", content: finalStatus === "stopped" ? "已停止" : "" })
       await finishTask(task, finalStatus)
     } catch (err: any) {
       console.error("Agent process execution error:", err)
