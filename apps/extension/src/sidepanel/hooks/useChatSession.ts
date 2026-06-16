@@ -996,5 +996,6 @@ export function useChatSession(workspaceId: string) {
     loadSession,
     sessionId,
     sessionVersion,
+    sessionStates,
   }
 }

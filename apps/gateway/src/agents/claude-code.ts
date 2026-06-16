@@ -30,6 +30,7 @@ function streamProcess(
 
     let stdoutBuffer = ""
     let textBuffer = ""
+    let lastThinkingLogTime = 0
     const logAgentText = (text: string) => {
       textBuffer += text
       const lines = textBuffer.split("\n")
@@ -57,8 +58,12 @@ function streamProcess(
                   logAgentText(innerEvent.delta.text)
                   onChunk({ type: "text", content: innerEvent.delta.text })
                 } else if (innerEvent.delta.type === "thinking_delta" && innerEvent.delta.thinking) {
-                  logAgentChunk("Claude Code", { type: "status", content: "思考中..." })
-                  onChunk({ type: "status", content: "思考中..." })
+                  const now = Date.now()
+                  if (now - lastThinkingLogTime > 2000) {
+                    lastThinkingLogTime = now
+                    logAgentChunk("Claude Code", { type: "status", content: "思考中..." })
+                    onChunk({ type: "status", content: "思考中..." })
+                  }
                 }
               }
             }

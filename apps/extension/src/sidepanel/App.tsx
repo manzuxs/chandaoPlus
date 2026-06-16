@@ -189,7 +189,7 @@ export function App() {
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates } = useChatSession(workspaceId)
 
   // 同步 agent 状态：加载会话时跟随会话渠道，新会话时将本地偏好同步到 temp
   const prevSessionIdRef = useRef<string | null>(null)
@@ -923,6 +923,12 @@ export function App() {
               <div className="history-session-list">
                 {sessions.map((s) => {
                   const isActive = s.id === sessionId;
+                  const liveState = sessionStates[s.id];
+                  const runningTaskId = liveState !== undefined ? liveState.runningTaskId : s.runningTaskId;
+                  const runningStatus = liveState !== undefined
+                    ? (liveState.statusText === "正在停止..." ? "stopping" : (liveState.runningTaskId ? "running" : undefined))
+                    : s.runningStatus;
+
                   return (
                     <div
                       key={s.id}
@@ -943,10 +949,10 @@ export function App() {
                       <div className="history-session-item-top">
                         <span className="history-session-item-title">
                           {s.title || s.id.slice(0, 8)}
-                          {s.runningTaskId && (
-                            <span className={`history-session-running-badge ${s.runningStatus === "stopping" ? "stopping" : "running"}`} title={s.runningStatus === "stopping" ? "正在停止后台任务" : "后台任务运行中"}>
+                          {runningTaskId && (
+                            <span className={`history-session-running-badge ${runningStatus === "stopping" ? "stopping" : "running"}`} title={runningStatus === "stopping" ? "正在停止后台任务" : "后台任务运行中"}>
                               <span className="running-dot" />
-                              {s.runningStatus === "stopping" ? "停止中" : "运行中"}
+                              {runningStatus === "stopping" ? "停止中" : "运行中"}
                             </span>
                           )}
                         </span>
@@ -960,13 +966,13 @@ export function App() {
                         </span>
                         <div className="history-session-item-meta-right" onClick={(e) => e.stopPropagation()}>
                           {isActive && <span className="history-session-item-current">当前</span>}
-                          {s.runningTaskId && (
+                          {runningTaskId && (
                             <button
                               type="button"
                               className="btn-stop-session-quick"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                stop(s.id, s.runningTaskId);
+                                stop(s.id, runningTaskId);
                               }}
                               title="终止后台任务"
                               aria-label="终止后台任务"
@@ -980,7 +986,7 @@ export function App() {
                             onClick={(e) => {
                               e.stopPropagation();
                               requestConfirm("删除会话", "确定要删除这个会话吗？删除后将无法恢复该会话下的所有内容。", () => {
-                                deleteSession(s.id, s.runningTaskId);
+                                deleteSession(s.id, runningTaskId);
                               });
                             }}
                             title="删除会话"

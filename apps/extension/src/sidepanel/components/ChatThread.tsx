@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react"
 import type { ChatMessage, SessionListItem, Skill } from "@chandaoplus/shared"
+import { marked } from "marked"
 
 // SVG Icons
 const UserIcon = () => (
@@ -47,99 +48,28 @@ interface ChatThreadProps {
 function renderMarkdown(md: string): string {
   if (!md) return ""
 
-  let html = md
+  let escaped = md
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+    .replace(/\\\|/g, "&#124;")
+    .replace(/\|\|/g, "&#124;&#124;")
 
-  html = html.replace(/```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g, (_, code) => {
-    return `<pre><code>${code}</code></pre>`
+  // 预处理：保护反单引号代码块内的竖线，防止 marked 表格解析器将其误判为分列符
+  escaped = escaped.replace(/`([^`\n]+)`/g, (match, code) => {
+    return "`" + code.replace(/\|/g, "&#124;") + "`"
   })
 
-  html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>")
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-  html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>")
-  html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>")
-  html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>")
-  html = html.replace(/^---$/gim, "<hr />")
+  // 同步使用 marked 解析 Markdown
+  let html = marked.parse(escaped, { async: false }) as string
 
-  const lines = html.split("\n")
-  let inTable = false
-  let inList = false
-  let inPre = false
+  // 配合 UI 规范样式，用 table-wrapper 包裹 table，确保圆角与 border-hairline 正确应用
+  html = html
+    .replace(/<table>/g, '<div class="table-wrapper"><table>')
+    .replace(/<\/table>/g, '</table></div>')
+    .replace(/&amp;#124;/g, "|")
+    .replace(/&#124;/g, "|")
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-
-    if (lines[i].includes("<pre>")) {
-      inPre = true
-    }
-
-    if (line === "---" || line === "<hr />") {
-      lines[i] = "<hr />"
-      if (inList) {
-        inList = false
-        lines[i] = "</ul><hr />"
-      }
-      if (inTable) {
-        inTable = false
-        lines[i] = "</tbody></table></div><hr />"
-      }
-      continue
-    }
-
-    if (!inPre) {
-      if (line.startsWith("- ") || /^-\s/.test(line)) {
-        const content = `<li>${line.replace(/^-\s+/, "")}</li>`
-        if (!inList) {
-          inList = true
-          lines[i] = "<ul>" + content
-        } else {
-          lines[i] = content
-        }
-      } else {
-        if (inList) {
-          inList = false
-          lines[i] = "</ul>" + lines[i]
-        }
-      }
-
-      if (line.startsWith("|") && line.endsWith("|")) {
-        const cells = line.split("|").slice(1, -1).map((c) => c.trim())
-        if (!inTable) {
-          inTable = true
-          lines[i] = '<div class="table-wrapper"><table><thead><tr>' + cells.map((c) => `<th>${c}</th>`).join("") + "</tr></thead><tbody>"
-        } else {
-          if (cells.every((c) => /^:-*:$/.test(c) || /^-+$/.test(c))) {
-            lines[i] = ""
-          } else {
-            lines[i] = "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>"
-          }
-        }
-      } else {
-        if (inTable) {
-          inTable = false
-          lines[i] = "</tbody></table></div>" + lines[i]
-        }
-      }
-
-      if (!inList && !inTable && line !== "") {
-        if (!/^(<h[1-6]>|<hr|<ul>|<table>|<pre>)/.test(line)) {
-          lines[i] = `<p>${lines[i]}</p>`
-        }
-      }
-    }
-
-    if (lines[i].includes("</pre>")) {
-      inPre = false
-    }
-  }
-
-  let suffix = ""
-  if (inList) suffix += "</ul>"
-  if (inTable) suffix += "</tbody></table></div>"
-
-  html = lines.join("\n") + suffix
   return html
 }
 
