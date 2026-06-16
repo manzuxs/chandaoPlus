@@ -73,13 +73,17 @@ export function registerChatRoutes(app: any, deps: any) {
       let hasPersisted = false
       let assistantContent = ""
 
-      // 流中断时持久化已接收的部分助手消息
+      // 创建 AbortController，前端断开连接（点击停止）时终止子进程
+      const abortController = new AbortController()
+
+      // 流中断时持久化已接收的部分助手消息，并终止子进程
       req.on("close", () => {
+        abortController.abort()
         if (!completed && !hasPersisted && assistantContent) {
           hasPersisted = true
           deps.sessionStore.appendMessage(sessionId!, {
             role: "assistant",
-            content: assistantContent + "\n\n[连接中断]",
+            content: assistantContent + "\n\n[已停止]",
           }).catch((err: any) => { console.error("Failed to persist interrupted message:", err) })
         }
       })
@@ -92,6 +96,7 @@ export function registerChatRoutes(app: any, deps: any) {
           bundleDir,
           skill,
           sessionStore: deps.sessionStore,
+          signal: abortController.signal,
           onChunk: (chunk: any) => {
             if (chunk.type === "text") {
               assistantContent += chunk.content

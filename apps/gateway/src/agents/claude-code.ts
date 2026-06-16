@@ -8,10 +8,17 @@ function streamProcess(
   args: string[],
   cwd: string,
   prompt: string,
-  onChunk: (chunk: any) => void
+  onChunk: (chunk: any) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return resolve()
+    }
     const child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"] })
+    signal?.addEventListener("abort", () => {
+      child.kill("SIGTERM")
+    }, { once: true })
     
     child.stdin.write(prompt)
     child.stdin.end()
@@ -57,7 +64,9 @@ function streamProcess(
     })
 
     child.on("close", (code) => {
-      if (code === 0) {
+      if (signal?.aborted) {
+        resolve()
+      } else if (code === 0) {
         resolve()
       } else {
         reject(new Error(`Process exited with code ${code}. Stderr: ${stderrBuffer}`))
@@ -70,7 +79,7 @@ function streamProcess(
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
-  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore }: AgentRunOptions) {
+  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
     const prompt = buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
@@ -135,7 +144,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
 
     try {
-      await streamProcess(bin, args, workspace.rootPath, prompt, onChunk)
+      await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
     } catch (err: any) {
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
@@ -151,7 +160,7 @@ export const claudeCodeAdapter: AgentAdapter = {
             fallbackArgs.push(args[i])
           }
         }
-        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, onChunk)
+        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, onChunk, signal)
       } else {
         throw err
       }

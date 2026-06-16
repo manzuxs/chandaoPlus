@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
 
@@ -16,6 +16,7 @@ export function useChatSession(workspaceId: string) {
   }>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -290,6 +291,11 @@ export function useChatSession(workspaceId: string) {
     let isAssistantMsgAdded = true
     let assistantMsg: ChatMessage = { role: "assistant", content: "" }
 
+    // 创建新的 AbortController，取消上一个（如有）
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       // Step 1: Capture page
       const pageCapture = await captureActiveTabPage()
@@ -326,7 +332,8 @@ export function useChatSession(workspaceId: string) {
       const response = await fetch("http://127.0.0.1:3210/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       })
 
       if (!response.ok) {
@@ -440,32 +447,49 @@ export function useChatSession(workspaceId: string) {
         }
       }))
     } catch (err: any) {
-      console.error(err)
-      const currentKey = activeId || "temp"
-      setSessionStates((prev) => {
-        const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
-        const nextMessages = [...state.messages]
-        if (isAssistantMsgAdded) {
-          const lastMsg = nextMessages[nextMessages.length - 1]
-          nextMessages[nextMessages.length - 1] = {
-            ...lastMsg,
-            content: lastMsg.content
-              ? `${lastMsg.content}\n[发送请求失败: ${err.message}]`
-              : `发送请求失败: ${err.message}`
+      // fetch 被 abort 时静默结束，不报错
+      if (err.name === "AbortError") {
+        const currentKey = activeId || "temp"
+        setSessionStates((prev) => {
+          const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
+          const nextMessages = [...state.messages]
+          if (isAssistantMsgAdded && nextMessages.length > 0) {
+            const last = nextMessages[nextMessages.length - 1]
+            if (last.role === "assistant" && !last.content) {
+              nextMessages[nextMessages.length - 1] = { ...last, content: "[已停止]" }
+            }
           }
-        } else {
-          nextMessages.push({ role: "assistant", content: `发送请求失败: ${err.message}` })
-        }
-        return {
-          ...prev,
-          [currentKey]: {
-            ...state,
-            statusText: `连接错误: ${err.message}`,
-            messages: nextMessages
+          return { ...prev, [currentKey]: { ...state, statusText: "", messages: nextMessages } }
+        })
+      } else {
+        console.error(err)
+        const currentKey = activeId || "temp"
+        setSessionStates((prev) => {
+          const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
+          const nextMessages = [...state.messages]
+          if (isAssistantMsgAdded) {
+            const lastMsg = nextMessages[nextMessages.length - 1]
+            nextMessages[nextMessages.length - 1] = {
+              ...lastMsg,
+              content: lastMsg.content
+                ? `${lastMsg.content}\n[发送请求失败: ${err.message}]`
+                : `发送请求失败: ${err.message}`
+            }
+          } else {
+            nextMessages.push({ role: "assistant", content: `发送请求失败: ${err.message}` })
           }
-        }
-      })
+          return {
+            ...prev,
+            [currentKey]: {
+              ...state,
+              statusText: `连接错误: ${err.message}`,
+              messages: nextMessages
+            }
+          }
+        })
+      }
     } finally {
+      abortControllerRef.current = null
       const currentKey = activeId || "temp"
       setSessionStates((prev) => ({
         ...prev,
@@ -527,6 +551,10 @@ export function useChatSession(workspaceId: string) {
   const effort = activeState.effort || "medium"
   const permissionMode = activeState.permissionMode || "full"
 
+  const stop = useCallback(() => {
+    abortControllerRef.current?.abort()
+  }, [])
+
   return {
     workspaces,
     skills,
@@ -539,6 +567,7 @@ export function useChatSession(workspaceId: string) {
     permissionMode,
     setSessionConfig,
     send,
+    stop,
     addWorkspace,
     updateWorkspace,
     deleteWorkspace,

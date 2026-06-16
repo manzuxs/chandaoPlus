@@ -9,10 +9,17 @@ function streamProcessCodex(
   cwd: string,
   prompt: string,
   onChunk: (chunk: any) => void,
-  onThreadStarted: (threadId: string) => void
+  onThreadStarted: (threadId: string) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return resolve()
+    }
     const child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"] })
+    signal?.addEventListener("abort", () => {
+      child.kill("SIGTERM")
+    }, { once: true })
     
     child.stdin.write(prompt)
     child.stdin.end()
@@ -50,7 +57,9 @@ function streamProcessCodex(
     })
 
     child.on("close", (code) => {
-      if (code === 0) {
+      if (signal?.aborted) {
+        resolve()
+      } else if (code === 0) {
         resolve()
       } else {
         reject(new Error(`Codex process exited with code ${code}`))
@@ -63,7 +72,7 @@ function streamProcessCodex(
 
 export const codexAdapter: AgentAdapter = {
   id: "codex",
-  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore }: AgentRunOptions) {
+  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
     const prompt = buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
@@ -119,7 +128,8 @@ export const codexAdapter: AgentAdapter = {
             console.error("Failed to update codex thread id:", err)
           })
         }
-      }
+      },
+      signal
     )
   }
 }

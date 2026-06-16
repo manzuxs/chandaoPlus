@@ -40,10 +40,17 @@ function streamProcessOpencode(
   cwd: string,
   prompt: string,
   env: Record<string, string | undefined>,
-  onChunk: (chunk: any) => void
+  onChunk: (chunk: any) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return resolve()
+    }
     const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
+    signal?.addEventListener("abort", () => {
+      child.kill("SIGTERM")
+    }, { once: true })
     
     child.stdin.write(prompt)
     child.stdin.end()
@@ -85,7 +92,9 @@ function streamProcessOpencode(
     })
  
     child.on("close", (code) => {
-      if (code === 0) {
+      if (signal?.aborted) {
+        resolve()
+      } else if (code === 0) {
         resolve()
       } else {
         reject(new Error(`OpenCode process exited with code ${code}. Stderr: ${stderrBuffer}`))
@@ -98,7 +107,7 @@ function streamProcessOpencode(
 
 export const opencodeAdapter: AgentAdapter = {
   id: "opencode",
-  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore }: AgentRunOptions) {
+  async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
     const prompt = buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
@@ -169,6 +178,6 @@ export const opencodeAdapter: AgentAdapter = {
       }
     }
 
-    await streamProcessOpencode(bin, args, workspace.rootPath, prompt, env, onChunk)
+    await streamProcessOpencode(bin, args, workspace.rootPath, prompt, env, onChunk, signal)
   }
 }

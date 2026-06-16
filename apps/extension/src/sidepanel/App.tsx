@@ -33,6 +33,12 @@ const SendIcon = () => (
   </svg>
 )
 
+const StopIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="16" rx="2" />
+  </svg>
+)
+
 const BoltIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -176,7 +182,7 @@ export function App() {
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig } = useChatSession(workspaceId)
 
   // 同步 agent 状态：加载会话时跟随会话渠道，新会话时将本地偏好同步到 temp
   const prevSessionIdRef = useRef<string | null>(null)
@@ -846,24 +852,35 @@ export function App() {
                 )}
               </div>
 
-              {/* 发送按钮 */}
-              <button
-                type="button"
-                className="btn-send"
-                aria-label="发送"
-                disabled={!workspaceId || sending}
-                onClick={() => {
-                  send({
-                    workspaceId,
-                    agent,
-                    command,
-                    input
-                  })
-                  setInput("")
-                }}
-              >
-                <SendIcon />
-              </button>
+              {/* 发送 / 停止 按钮 */}
+              {sending ? (
+                <button
+                  type="button"
+                  className="btn-send btn-stop"
+                  aria-label="停止"
+                  onClick={stop}
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-send"
+                  aria-label="发送"
+                  disabled={!workspaceId || sending}
+                  onClick={() => {
+                    send({
+                      workspaceId,
+                      agent,
+                      command,
+                      input
+                    })
+                    setInput("")
+                  }}
+                >
+                  <SendIcon />
+                </button>
+              )}
             </div>
           </div>
         </div>

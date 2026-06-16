@@ -8,6 +8,7 @@ export interface AgentRunOptions {
   skill?: Skill
   onChunk: (chunk: ChatStreamChunk) => void
   sessionStore: any
+  signal?: AbortSignal
 }
 
 export interface AgentAdapter {

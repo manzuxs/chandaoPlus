@@ -1511,6 +1511,20 @@ button {
   stroke-width: 2.5;
 }
 
+.btn-stop {
+  background-color: #e53935;
+}
+
+.btn-stop:hover {
+  background-color: #c62828;
+  opacity: 1;
+}
+
+.btn-stop svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* Slash Menu */
 .slash-menu {
   position: absolute;
