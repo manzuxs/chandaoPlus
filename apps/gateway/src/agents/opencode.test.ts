@@ -12,7 +12,7 @@ vi.mock("node:child_process", () => ({
   execSync: childProcessMock.execSync,
 }))
 
-function createOpencodeChild() {
+function createOpencodeChild(options: { autoClose?: boolean } = {}) {
   const child = new EventEmitter() as EventEmitter & {
     stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> }
     stdout: EventEmitter
@@ -26,9 +26,11 @@ function createOpencodeChild() {
   child.stdout = new EventEmitter()
   child.stderr = new EventEmitter()
 
-  queueMicrotask(() => {
-    child.emit("close", 0)
-  })
+  if (options.autoClose !== false) {
+    queueMicrotask(() => {
+      child.emit("close", 0)
+    })
+  }
 
   return child
 }
@@ -39,17 +41,10 @@ describe("opencodeAdapter", () => {
     childProcessMock.execSync.mockReset()
   })
 
-  it("passes parsed macOS proxy ports to OpenCode", async () => {
-    childProcessMock.execSync.mockReturnValue(Buffer.from(`
-<dictionary> {
-  HTTPEnable : 1
-  HTTPPort : 7897
-  HTTPProxy : 127.0.0.1
-  SOCKSEnable : 1
-  SOCKSPort : 7897
-  SOCKSProxy : 127.0.0.1
-}
-`))
+  it("does not probe or inject macOS system proxy settings", async () => {
+    childProcessMock.execSync.mockImplementation(() => {
+      throw new Error("scutil should not be called")
+    })
     childProcessMock.spawn.mockImplementation(() => createOpencodeChild())
 
     await opencodeAdapter.run({
@@ -71,8 +66,44 @@ describe("opencodeAdapter", () => {
     })
 
     const env = childProcessMock.spawn.mock.calls[0]?.[2]?.env
-    expect(env.HTTP_PROXY).toBe("http://127.0.0.1:7897")
-    expect(env.HTTPS_PROXY).toBe("http://127.0.0.1:7897")
-    expect(env.ALL_PROXY).toBe("socks5://127.0.0.1:7897")
+    expect(childProcessMock.execSync).not.toHaveBeenCalled()
+    expect(env.HTTP_PROXY).toBe(process.env.HTTP_PROXY)
+    expect(env.HTTPS_PROXY).toBe(process.env.HTTPS_PROXY)
+    expect(env.ALL_PROXY).toBe(process.env.ALL_PROXY)
+  })
+
+  it("parses a final JSON event even when stdout has no trailing newline", async () => {
+    childProcessMock.execSync.mockReturnValue(Buffer.from(""))
+    const child = createOpencodeChild({ autoClose: false })
+    childProcessMock.spawn.mockReturnValue(child)
+    const onChunk = vi.fn()
+
+    const runPromise = opencodeAdapter.run({
+      workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "opencode" },
+      bundleDir: "/tmp/bundle",
+      request: {
+        workspaceId: "project-a",
+        agent: "opencode",
+        command: "estimate",
+        model: "opencode-go/kimi-k2.6",
+        effort: "medium",
+        permissionMode: "full",
+        page: { url: "https://example.com", title: "Example", markdown: "# Example", images: [], metadata: {} },
+        messages: [{ role: "user", content: "Hello" }],
+      },
+      skill: undefined,
+      sessionStore: undefined,
+      onChunk,
+    })
+
+    child.stdout.emit("data", Buffer.from(JSON.stringify({
+      type: "text",
+      sessionID: "ses_final_buffer",
+      part: { type: "text", text: "OK" },
+    })))
+    child.emit("close", 0)
+    await runPromise
+
+    expect(onChunk).toHaveBeenCalledWith({ type: "text", content: "OK" })
   })
 })

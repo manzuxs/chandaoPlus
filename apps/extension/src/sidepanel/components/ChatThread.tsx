@@ -245,8 +245,8 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sending = fal
         </div>
       ) : (
         messages.map((msg, index) => {
-          const isThinking = msg.role === "assistant" && !msg.content
           const isGenerating = sending && msg.role === "assistant" && index === messages.length - 1
+          const isThinking = isGenerating && !msg.content
 
           return (
             <div key={index} className={`message-row ${msg.role}`}>

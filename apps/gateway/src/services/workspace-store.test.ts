@@ -24,5 +24,34 @@ describe("WorkspaceStore", () => {
     expect(workspaces[0]?.rootPath).toBe(workspaceRoot)
     expect(bundleDir).toContain(".chandaoplus/sessions/session-1")
     expect(await readFile(join(bundleDir, "page.md"), "utf8")).toContain("# BUG #1")
+    expect(await readFile(join(bundleDir, "conversation.md"), "utf8")).toContain("暂无历史会话消息")
+  })
+
+  it("writes recent conversation history into the context bundle", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "chandaoplus-"))
+    const workspaceRoot = join(baseDir, "project-a")
+
+    const bundleDir = await writeContextBundle(
+      workspaceRoot,
+      "session-2",
+      {
+        url: "https://zentao.local/bug-view-2.html",
+        title: "BUG #2",
+        markdown: "# BUG #2",
+        images: [],
+        metadata: {}
+      },
+      [
+        { role: "user", content: "之前请 Claude Code 分析过登录问题" },
+        { role: "assistant", content: "结论是 token 过期处理异常" }
+      ]
+    )
+
+    const conversation = await readFile(join(bundleDir, "conversation.md"), "utf8")
+    expect(conversation).toContain("# 会话历史")
+    expect(conversation).toContain("## 1. User")
+    expect(conversation).toContain("之前请 Claude Code 分析过登录问题")
+    expect(conversation).toContain("## 2. Assistant")
+    expect(conversation).toContain("结论是 token 过期处理异常")
   })
 })

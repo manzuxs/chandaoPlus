@@ -37,7 +37,7 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("## 验证清单")
   })
 
-  it("includes conversation history when multiple messages", () => {
+  it("points agents to persisted conversation history instead of inlining messages", () => {
     const prompt = buildPrompt({
       command: "default",
       workspaceRoot: "/ws",
@@ -49,9 +49,10 @@ describe("buildPrompt", () => {
       ],
     })
 
-    expect(prompt).toContain("<conversation_history>")
-    expect(prompt).toContain('<message role="user">这是什么bug？</message>')
-    expect(prompt).toContain('<message role="assistant">这是一个空指针异常</message>')
+    expect(prompt).toContain("/tmp/bundle/conversation.md")
+    expect(prompt).not.toContain("<conversation_history>")
+    expect(prompt).not.toContain("这是什么bug？")
+    expect(prompt).not.toContain("这是一个空指针异常")
     expect(prompt).toContain("<current_task>")
     expect(prompt).toContain("<user_request>如何修复？</user_request>")
   })

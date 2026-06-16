@@ -1,6 +1,6 @@
 import { Router } from "express"
 import crypto from "node:crypto"
-import { ChatRequestSchema } from "@chandaoplus/shared"
+import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { CODEX_BIN, OPENCODE_BIN } from "../config"
 
@@ -18,12 +18,14 @@ export function registerChatRoutes(app: any, deps: any) {
 
       // 处理 session：复用或创建
       let sessionId = request.sessionId
+      let conversationMessages: ChatMessage[] = []
       if (sessionId) {
         const existing = await deps.sessionStore.get(sessionId)
         if (!existing || existing.workspaceId !== request.workspaceId) {
           res.status(404).json({ error: "Session not found or workspace mismatch" })
           return
         }
+        conversationMessages = [...(existing.messages || [])]
         // 续问时同步更新配置参数到 SessionStore
         await deps.sessionStore.updateConfig(sessionId, {
           agent: request.agent,
@@ -51,7 +53,7 @@ export function registerChatRoutes(app: any, deps: any) {
       }
 
       const contextSessionId = crypto.randomUUID()
-      const bundleDir = await writeContextBundle(workspace.rootPath, contextSessionId, request.page)
+      const bundleDir = await writeContextBundle(workspace.rootPath, contextSessionId, request.page, conversationMessages)
       await deps.sessionStore.addContextBundleDir(sessionId, bundleDir)
 
       res.setHeader("Content-Type", "text/event-stream; charset=utf-8")

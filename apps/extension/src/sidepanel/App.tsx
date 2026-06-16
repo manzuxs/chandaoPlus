@@ -295,7 +295,7 @@ export function App() {
     }
   }, [])
 
-  // Load session list for workspace
+  // Load session list for workspace (only on workspace change or create/delete, NOT on session switch)
   useEffect(() => {
     if (!workspaceId) return
     fetch(`http://127.0.0.1:3210/api/sessions?workspaceId=${workspaceId}`)
@@ -304,7 +304,7 @@ export function App() {
         if (Array.isArray(data)) setSessions(data)
       })
       .catch(() => {})
-  }, [workspaceId, sessionId, sessionVersion])
+  }, [workspaceId, sessionVersion])
 
   const handleSwitchSession = (newSessionId: string) => {
     loadSession(newSessionId)
@@ -858,7 +858,7 @@ export function App() {
                   type="button"
                   className="btn-send btn-stop"
                   aria-label="停止"
-                  onClick={stop}
+                  onClick={() => stop()}
                 >
                   <StopIcon />
                 </button>

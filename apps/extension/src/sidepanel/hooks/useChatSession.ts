@@ -16,7 +16,11 @@ export function useChatSession(workspaceId: string) {
   }>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const abortControllersRef = useRef<Record<string, AbortController>>({})
+  // 用 ref 同步持有最新 sessionStates，避免在异步回调里读到旧快照
+  const sessionStatesRef = useRef<typeof sessionStates>({})
+  // 每次渲染时更新 ref（不触发重新渲染，仅为同步读取用）
+  sessionStatesRef.current = sessionStates
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -59,7 +63,10 @@ export function useChatSession(workspaceId: string) {
         if (stored) {
           setSessionId(stored)
           fetch(`http://127.0.0.1:3210/api/sessions/${stored}`)
-            .then((r) => r.json())
+            .then((res) => {
+              if (!res.ok) throw new Error("Session not found")
+              return res.json()
+            })
             .then((session) => {
               if (!active) return
               if (session.messages) {
@@ -77,7 +84,14 @@ export function useChatSession(workspaceId: string) {
                 }))
               }
             })
-            .catch(() => {})
+            .catch(() => {
+              if (!active) return
+              // 如果服务端拉取失败，判定为失效会话，清理并回退
+              setSessionId(null)
+              if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.remove(`session_${workspaceId}`).catch(() => {})
+              }
+            })
         } else {
           setSessionId(null)
         }
@@ -178,6 +192,10 @@ export function useChatSession(workspaceId: string) {
   }
 
   const deleteSession = useCallback(async (id: string) => {
+    // 同时也 abort 正在运行的请求
+    abortControllersRef.current[id]?.abort()
+    delete abortControllersRef.current[id]
+
     try {
       const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`, {
         method: "DELETE"
@@ -206,6 +224,10 @@ export function useChatSession(workspaceId: string) {
   }, [sessionId, workspaceId])
 
   const newSession = useCallback(() => {
+    // 放弃当前新会话时，如果 temp 正在发送，将其 abort
+    abortControllersRef.current["temp"]?.abort()
+    delete abortControllersRef.current["temp"]
+
     setSessionId(null)
     setSessionStates((prev) => {
       const next = { ...prev }
@@ -237,18 +259,35 @@ export function useChatSession(workspaceId: string) {
   }, [sessionId])
 
   const loadSession = useCallback(async (id: string) => {
+    // 先切换 sessionId，让 UI 立即响应
+    setSessionId(id)
+
+    // 通过 ref 同步读取最新缓存，避免闭包旧值问题
+    const cached = sessionStatesRef.current[id]
+    if (cached?.messages?.length > 0) {
+      // 已有缓存，直接使用，不发请求
+      return
+    }
+
+    // 无缓存，设置加载占位然后拉取
+    setSessionStates((prev) => ({
+      ...prev,
+      [id]: prev[id] || { messages: [], sending: false, statusText: "加载中..." }
+    }))
+
     try {
       const res = await fetch(`http://127.0.0.1:3210/api/sessions/${id}`)
-      if (!res.ok) return
+      if (!res.ok) {
+        throw new Error("Session not found")
+      }
       const session = await res.json()
       if (session.messages) {
-        setSessionId(id)
         setSessionStates((prev) => ({
           ...prev,
           [id]: {
             messages: session.messages,
             sending: prev[id]?.sending || false,
-            statusText: prev[id]?.statusText || "",
+            statusText: "",
             agent: session.agent || prev[id]?.agent,
             model: prev[id]?.model || session.model || "default",
             effort: prev[id]?.effort || session.effort || "medium",
@@ -258,8 +297,17 @@ export function useChatSession(workspaceId: string) {
       }
     } catch (err) {
       console.error("Failed to load session:", err)
+      setSessionStates((prev) => ({
+        ...prev,
+        [id]: { ...prev[id], statusText: "" }
+      }))
+      // 切换失败（比如会话已被从后端物理删除），回退到新会话状态
+      setSessionId(null)
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
+        chrome.storage.local.remove(`session_${workspaceId}`).catch(() => {})
+      }
     }
-  }, [])
+  }, [workspaceId])
 
   const send = async (params: {
     workspaceId: string
@@ -291,10 +339,10 @@ export function useChatSession(workspaceId: string) {
     let isAssistantMsgAdded = true
     let assistantMsg: ChatMessage = { role: "assistant", content: "" }
 
-    // 创建新的 AbortController，取消上一个（如有）
-    abortControllerRef.current?.abort()
+    // 取消上一个针对该会话的请求（如有）
+    abortControllersRef.current[targetKey]?.abort()
     const controller = new AbortController()
-    abortControllerRef.current = controller
+    abortControllersRef.current[targetKey] = controller
 
     try {
       // Step 1: Capture page
@@ -489,7 +537,9 @@ export function useChatSession(workspaceId: string) {
         })
       }
     } finally {
-      abortControllerRef.current = null
+      if (abortControllersRef.current[targetKey] === controller) {
+        delete abortControllersRef.current[targetKey]
+      }
       const currentKey = activeId || "temp"
       setSessionStates((prev) => ({
         ...prev,
@@ -551,9 +601,11 @@ export function useChatSession(workspaceId: string) {
   const effort = activeState.effort || "medium"
   const permissionMode = activeState.permissionMode || "full"
 
-  const stop = useCallback(() => {
-    abortControllerRef.current?.abort()
-  }, [])
+  const stop = useCallback((id?: string) => {
+    const key = id !== undefined ? id : (sessionId || "temp")
+    abortControllersRef.current[key]?.abort()
+    delete abortControllersRef.current[key]
+  }, [sessionId])
 
   return {
     workspaces,
