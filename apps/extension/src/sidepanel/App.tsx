@@ -63,6 +63,12 @@ const renderSkillIcon = (skill: Skill) => {
   if (skill.id === "estimate") {
     return <ClockIcon />
   }
+  if (skill.id === "fix") {
+    return <GearIcon />
+  }
+  if (skill.id === "verify") {
+    return <CheckIcon />
+  }
   return <BoltIcon />
 }
 

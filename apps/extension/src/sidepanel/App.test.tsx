@@ -28,6 +28,26 @@ describe("App", () => {
               promptTemplate: "请评估这个问题的修复工期、风险和建议方案。\n输出结构化结果。",
               outputFormat: "markdown",
               builtin: true
+            },
+            {
+              id: "fix",
+              name: "定位并修复问题",
+              icon: "🛠️",
+              description: "结合代码定位根因并修复问题",
+              keywords: ["fix", "修复", "定位"],
+              promptTemplate: "请结合代码定位根因并完成最小修复。",
+              outputFormat: "markdown",
+              builtin: true
+            },
+            {
+              id: "verify",
+              name: "修复验收检查",
+              icon: "✅",
+              description: "检查修复成果和回归风险",
+              keywords: ["verify", "验收", "检查"],
+              promptTemplate: "请检查修复成果是否满足禅道诉求。",
+              outputFormat: "markdown",
+              builtin: true
             }
           ])
         })
@@ -100,6 +120,8 @@ describe("App", () => {
     
     // 欢迎页中的快捷技能卡片
     await screen.findByText("评估工期与修复方案")
+    expect(screen.getByText("定位并修复问题")).toBeTruthy()
+    expect(screen.getByText("修复验收检查")).toBeTruthy()
 
     expect((screen.getByRole("button", { name: "发送" }) as HTMLButtonElement).disabled).toBe(true)
     
@@ -136,7 +158,11 @@ describe("App", () => {
     
     expect(screen.getByText("快捷技能")).toBeTruthy()
     expect(screen.getAllByText("评估工期与修复方案").length).toBe(2)
+    expect(screen.getAllByText("定位并修复问题").length).toBe(2)
+    expect(screen.getAllByText("修复验收检查").length).toBe(2)
     expect(screen.getByText("/estimate")).toBeTruthy()
+    expect(screen.getByText("/fix")).toBeTruthy()
+    expect(screen.getByText("/verify")).toBeTruthy()
     expect(screen.queryByText("获取修复建议")).toBeNull()
     expect(screen.queryByText("自由对话问答")).toBeNull()
 
@@ -146,6 +172,9 @@ describe("App", () => {
     fireEvent.change(textarea, { target: { value: "/rep" } })
     expect(screen.queryByText("快捷技能")).toBeNull()
     expect(screen.queryByText("/estimate")).toBeNull()
+
+    fireEvent.change(textarea, { target: { value: "/fix" } })
+    expect(screen.getAllByText("定位并修复问题").length).toBe(2)
   })
 
   it("copies the extracted page preview from the header button", async () => {

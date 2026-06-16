@@ -3,6 +3,11 @@ import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { CODEX_BIN, CODEX_ARGS } from "../config"
 
+function logAgentChunk(agent: string, chunk: { type: string; content?: string }) {
+  const content = chunk.content ?? ""
+  console.log(`[${agent} ${chunk.type}] ${content}`)
+}
+
 function streamProcessCodex(
   command: string,
   args: string[],
@@ -38,15 +43,20 @@ function streamProcessCodex(
           if (event.type === "thread.started" && event.thread_id) {
             onThreadStarted(event.thread_id)
           } else if (event.type === "text" && event.content) {
+            logAgentChunk("Codex", { type: "text", content: event.content })
             onChunk({ type: "text", content: event.content })
           } else if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
+            logAgentChunk("Codex", { type: "text", content: event.item.text })
             onChunk({ type: "text", content: event.item.text })
           } else if (event.type === "error" && event.message) {
+            logAgentChunk("Codex", { type: "error", content: event.message })
             onChunk({ type: "error", content: event.message })
           } else if (event.type === "turn.failed" && event.error?.message) {
+            logAgentChunk("Codex", { type: "error", content: event.error.message })
             onChunk({ type: "error", content: event.error.message })
           }
         } catch {
+          logAgentChunk("Codex", { type: "text", content: trimmed + "\n" })
           onChunk({ type: "text", content: trimmed + "\n" })
         }
       }

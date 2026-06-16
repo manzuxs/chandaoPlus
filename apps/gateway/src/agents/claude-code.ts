@@ -3,6 +3,11 @@ import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { CLAUDE_BIN, CLAUDE_ARGS } from "../config"
 
+function logAgentChunk(agent: string, chunk: { type: string; content?: string }) {
+  const content = chunk.content ?? ""
+  console.log(`[${agent} ${chunk.type}] ${content}`)
+}
+
 function streamProcess(
   command: string,
   args: string[],
@@ -39,18 +44,23 @@ function streamProcess(
             if (innerEvent) {
               if (innerEvent.type === "content_block_delta" && innerEvent.delta) {
                 if (innerEvent.delta.type === "text_delta" && innerEvent.delta.text) {
+                  logAgentChunk("Claude Code", { type: "text", content: innerEvent.delta.text })
                   onChunk({ type: "text", content: innerEvent.delta.text })
                 } else if (innerEvent.delta.type === "thinking_delta" && innerEvent.delta.thinking) {
+                  logAgentChunk("Claude Code", { type: "status", content: "思考中..." })
                   onChunk({ type: "status", content: "思考中..." })
                 }
               }
             }
           } else if (event.type === "progress" && event.content) {
+            logAgentChunk("Claude Code", { type: "status", content: event.content })
             onChunk({ type: "status", content: event.content })
           } else if (event.type === "error" && event.message) {
+            logAgentChunk("Claude Code", { type: "error", content: event.message })
             onChunk({ type: "error", content: event.message })
           }
         } catch {
+          logAgentChunk("Claude Code", { type: "text", content: trimmed + "\n" })
           onChunk({ type: "text", content: trimmed + "\n" })
         }
       }

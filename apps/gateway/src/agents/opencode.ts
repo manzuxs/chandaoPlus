@@ -3,6 +3,21 @@ import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { OPENCODE_BIN, OPENCODE_ARGS } from "../config"
 
+function logAgentChunk(agent: string, chunk: { type: string; content?: string }) {
+  const content = chunk.content ?? ""
+  console.log(`[${agent} ${chunk.type}] ${content}`)
+}
+
+function summarizeOpenCodeEvent(event: any): string {
+  const summary = {
+    sessionID: event.sessionID,
+    partType: event.part?.type,
+    reason: event.part?.reason,
+    tool: event.part?.tool,
+  }
+  return JSON.stringify(summary)
+}
+
 function streamProcessOpencode(
   command: string,
   args: string[],
@@ -16,8 +31,21 @@ function streamProcessOpencode(
     if (signal?.aborted) {
       return resolve()
     }
+    const startedAt = Date.now()
+    let lastActivityAt = startedAt
+    let stdoutBytes = 0
+    let stderrBytes = 0
+    let textChunks = 0
+    const eventCounts: Record<string, number> = {}
     const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
+    console.log(`[OpenCode start] pid=${child.pid ?? "unknown"} cwd=${cwd} command=${command} args=${JSON.stringify(args)}`)
+    const heartbeat = setInterval(() => {
+      const idleMs = Date.now() - lastActivityAt
+      const elapsedMs = Date.now() - startedAt
+      console.log(`[OpenCode heartbeat] pid=${child.pid ?? "unknown"} elapsedMs=${elapsedMs} idleMs=${idleMs} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes} textChunks=${textChunks} events=${JSON.stringify(eventCounts)}`)
+    }, 15000)
     signal?.addEventListener("abort", () => {
+      console.log(`[OpenCode abort] pid=${child.pid ?? "unknown"}`)
       child.kill("SIGTERM")
     }, { once: true })
     
@@ -29,26 +57,40 @@ function streamProcessOpencode(
       if (!trimmed) return
       try {
         const event = JSON.parse(trimmed)
+        lastActivityAt = Date.now()
+        eventCounts[event.type] = (eventCounts[event.type] || 0) + 1
         // 捕获 OpenCode 真实 sessionID（每个事件都携带），用于后续续问
         if (event.sessionID && typeof event.sessionID === "string") {
           onChunk({ type: "opencode_session_id", content: event.sessionID })
         }
         if (event.type === "text" && event.part && event.part.text) {
+          textChunks += 1
+          logAgentChunk("OpenCode", { type: "text", content: event.part.text })
           onChunk({ type: "text", content: event.part.text })
         } else if (event.type === "step_start") {
+          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
+          logAgentChunk("OpenCode", { type: "status", content: "开始运行..." })
           onChunk({ type: "status", content: "开始运行..." })
         } else if (event.type === "error") {
           const msg = event.error?.message || event.error?.data?.message || "Unknown error"
+          logAgentChunk("OpenCode", { type: "error", content: msg })
           onChunk({ type: "error", content: msg })
+        } else {
+          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
         }
       } catch {
+        lastActivityAt = Date.now()
+        logAgentChunk("OpenCode", { type: "text", content: trimmed + "\n" })
         onChunk({ type: "text", content: trimmed + "\n" })
       }
     }
 
     let stdoutBuffer = ""
     child.stdout.on("data", (chunk) => {
-      stdoutBuffer += chunk.toString()
+      const text = chunk.toString()
+      stdoutBytes += Buffer.byteLength(text)
+      lastActivityAt = Date.now()
+      stdoutBuffer += text
       const lines = stdoutBuffer.split("\n")
       stdoutBuffer = lines.pop() || ""
  
@@ -60,15 +102,19 @@ function streamProcessOpencode(
     let stderrBuffer = ""
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString()
+      stderrBytes += Buffer.byteLength(text)
+      lastActivityAt = Date.now()
       stderrBuffer += text
       console.error(`[OpenCode Stderr] ${text.trim()}`)
     })
  
     child.on("close", (code) => {
+      clearInterval(heartbeat)
       if (stdoutBuffer.trim()) {
         parseStdoutLine(stdoutBuffer)
         stdoutBuffer = ""
       }
+      console.log(`[OpenCode close] code=${code} signalAborted=${signal?.aborted ? "yes" : "no"} elapsedMs=${Date.now() - startedAt} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes} textChunks=${textChunks} events=${JSON.stringify(eventCounts)}`)
       if (signal?.aborted) {
         resolve()
       } else if (code === 0) {
@@ -78,7 +124,11 @@ function streamProcessOpencode(
       }
     })
  
-    child.on("error", reject)
+    child.on("error", (err) => {
+      clearInterval(heartbeat)
+      console.error(`[OpenCode process error] ${err.message}`)
+      reject(err)
+    })
   })
 }
 

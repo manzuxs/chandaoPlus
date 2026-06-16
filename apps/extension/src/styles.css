@@ -1750,6 +1750,25 @@ button {
   margin-bottom: var(--space-xs);
 }
 
+.skill-form-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink);
+  opacity: 0.58;
+}
+
+.skill-form-hint code {
+  display: inline-flex;
+  margin-left: var(--space-xxs);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background-color: var(--canvas);
+  border: var(--space-hair) solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.9;
+}
+
 .skill-form input,
 .skill-form textarea,
 .skill-form select {
@@ -1995,4 +2014,3 @@ button {
   from, to { opacity: 1; }
   50% { opacity: 0; }
 }
-
