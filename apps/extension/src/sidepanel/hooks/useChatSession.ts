@@ -566,6 +566,7 @@ export function useChatSession(workspaceId: string) {
   }) => {
     let activeId = sessionId
     const targetKey = activeId || tempSessionKey
+    const hasHistory = (sessionStates[targetKey]?.messages || []).length > 0
     
     // Check if currently sending for this specific targetKey
     if (sessionStates[targetKey]?.sending) return
@@ -604,7 +605,7 @@ export function useChatSession(workspaceId: string) {
       const capturedBugId = getBugId(capturedPage)
       let pageCapture = capturedPage
 
-      if (lockedBugId && capturedBugId && capturedBugId !== lockedBugId) {
+      if (hasHistory && lockedBugId && capturedBugId && capturedBugId !== lockedBugId) {
         const statusText = `当前会话绑定 BUG #${lockedBugId}，但当前页面是 BUG #${capturedBugId}。请新建会话或回到原 BUG 页面。`
         setSessionStates((prev) => {
           const state = prev[targetKey] || { messages: [], sending: false, statusText: "" }
@@ -642,7 +643,7 @@ export function useChatSession(workspaceId: string) {
           ...prev,
           [key]: {
             ...state,
-            lockedPage: capturedBugId && (!lockedBugId || capturedBugId === lockedBugId)
+            lockedPage: capturedBugId && (!hasHistory || !lockedBugId || capturedBugId === lockedBugId)
               ? capturedPage
               : state?.lockedPage,
             statusText: "正在连接网关..."

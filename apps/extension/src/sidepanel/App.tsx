@@ -907,19 +907,17 @@ export function App() {
               </button>
             </div>
             <div className="history-drawer-body">
-              {sessionId && (
-                <button
-                  type="button"
-                  className="btn-pill btn-pill-primary"
-                  style={{ width: "100%", justifyContent: "center", marginBottom: "var(--space-md)" }}
-                  onClick={() => {
-                    newSession();
-                    setShowHistoryDrawer(false);
-                  }}
-                >
-                  + 新建会话
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-pill btn-pill-primary"
+                style={{ width: "100%", justifyContent: "center", marginBottom: "var(--space-md)" }}
+                onClick={() => {
+                  newSession();
+                  setShowHistoryDrawer(false);
+                }}
+              >
+                + 新建会话
+              </button>
               <div className="history-session-list">
                 {sessions.map((s) => {
                   const isActive = s.id === sessionId;
