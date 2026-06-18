@@ -78,8 +78,35 @@ function streamProcessOpencode(
           onChunk({ type: "text", content: event.part.text })
         } else if (event.type === "step_start") {
           console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
-          logAgentChunk("OpenCode", { type: "status", content: "开始运行..." })
-          onChunk({ type: "status", content: "开始运行..." })
+          const startCount = eventCounts["step_start"] || 0
+          if (startCount === 1) {
+            logAgentChunk("OpenCode", { type: "status", content: "开始运行..." })
+            onChunk({ type: "status", content: "开始运行..." })
+          }
+        } else if (event.part?.type === "tool" && event.part?.tool) {
+          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
+          const toolName = event.part.tool
+          const toolInput = event.part.input || event.part.arguments || {}
+          
+          const rawPath = toolInput.path || toolInput.filePath || toolInput.file || ""
+          const targetPath = typeof rawPath === "string" ? rawPath.trim() : ""
+          
+          const rawCmd = toolInput.command || toolInput.cmd || ""
+          const targetCmd = typeof rawCmd === "string" ? rawCmd.trim() : ""
+
+          let statusText = `正在使用工具: ${toolName}...`
+          if (toolName === "edit") {
+            statusText = targetPath ? `正在修改文件: ${targetPath}...` : "正在修改代码..."
+          } else if (toolName === "read") {
+            statusText = targetPath ? `正在阅读文件: ${targetPath}...` : "正在阅读文件..."
+          } else if (toolName === "bash") {
+            statusText = targetCmd ? `正在执行命令: ${targetCmd}...` : "正在执行终端命令..."
+          } else if (toolName === "glob") {
+            statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
+          }
+          
+          logAgentChunk("OpenCode", { type: "status", content: statusText })
+          onChunk({ type: "status", content: statusText })
         } else if (event.type === "error") {
           const msg = event.error?.message || event.error?.data?.message || "Unknown error"
           logAgentChunk("OpenCode", { type: "error", content: msg })

@@ -57,6 +57,71 @@ function streamProcessCodex(
           } else if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
             logAgentText(event.item.text)
             onChunk({ type: "text", content: event.item.text })
+          } else if (event.type === "item.started" && event.item?.type === "command_execution" && event.item.command) {
+            const command = event.item.command
+            
+            const extractPath = (cmd: string): string => {
+              const cleaned = cmd.replace(/['">|]/g, ' ')
+              const tokens = cleaned.split(/\s+/)
+              for (const token of tokens) {
+                if (token.startsWith("-") || !token.includes(".")) continue
+                if (/^(sed|cat|head|tail|grep|find|ripgrep|glob|git|patch|echo|node|npm|pnpm|yarn|bun|python|sh|bash|zsh)$/.test(token)) continue
+                if (token.includes("/bin/")) continue
+                return token
+              }
+              return ""
+            }
+
+            const targetPath = extractPath(command)
+            let statusText = `正在执行命令: ${command}...`
+
+            if (command.includes("sed -n") || command.includes("cat ") || command.includes("head ") || command.includes("tail ") || command.includes("view_file")) {
+              statusText = targetPath ? `正在阅读文件: ${targetPath}...` : "正在阅读文件..."
+            } else if (command.includes("write_to_file") || command.includes("replace_file_content") || command.includes("git apply") || command.includes("patch") || command.includes(" > ") || command.includes(" >> ")) {
+              statusText = targetPath ? `正在修改文件: ${targetPath}...` : "正在修改代码..."
+            } else if (command.includes("grep ") || command.includes("find ") || command.includes("ripgrep") || command.includes("glob ")) {
+              statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
+            } else {
+              const shortCmd = command.length > 60 ? command.substring(0, 60) + "..." : command
+              statusText = `正在执行命令: ${shortCmd}`
+            }
+
+            logAgentChunk("Codex", { type: "status", content: statusText })
+            onChunk({ type: "status", content: statusText })
+          } else if (event.type === "thread.run.step.delta" || event.type === "thread.run.step.created") {
+            const step = event.step || event.run_step || event.step_delta || event.item
+            const toolCalls = step?.step_details?.tool_calls || step?.tool_calls
+            if (Array.isArray(toolCalls)) {
+              for (const tc of toolCalls) {
+                if (tc.type === "tool_call" || tc.type === "function") {
+                  const name = tc.function?.name || tc.name || ""
+                  const argsStr = tc.function?.arguments || tc.arguments || ""
+                  let args: any = {}
+                  try {
+                    args = typeof argsStr === "string" ? JSON.parse(argsStr) : argsStr
+                  } catch {}
+                  const toolName = name
+                  const toolInput = args || {}
+                  const rawPath = toolInput.path || toolInput.filePath || toolInput.file || toolInput.target || ""
+                  const targetPath = typeof rawPath === "string" ? rawPath.trim() : ""
+                  const rawCmd = toolInput.command || toolInput.cmd || ""
+                  const targetCmd = typeof rawCmd === "string" ? rawCmd.trim() : ""
+
+                  let statusText = `正在使用工具: ${toolName}...`
+                  if (toolName.includes("write") || toolName.includes("edit") || toolName.includes("replace") || toolName.includes("patch")) {
+                    statusText = targetPath ? `正在修改文件: ${targetPath}...` : "正在修改代码..."
+                  } else if (toolName.includes("read") || toolName.includes("view") || toolName.includes("show")) {
+                    statusText = targetPath ? `正在阅读文件: ${targetPath}...` : "正在阅读文件..."
+                  } else if (toolName.includes("bash") || toolName.includes("execute") || toolName.includes("run") || toolName.includes("cmd")) {
+                    statusText = targetCmd ? `正在执行命令: ${targetCmd}...` : "正在执行终端命令..."
+                  } else if (toolName.includes("glob") || toolName.includes("find") || toolName.includes("search")) {
+                    statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
+                  }
+                  logAgentChunk("Codex", { type: "status", content: statusText })
+                  onChunk({ type: "status", content: statusText })
+                }
+              }
+            }
           } else if (event.type === "error" && event.message) {
             logAgentChunk("Codex", { type: "error", content: event.message })
             onChunk({ type: "error", content: event.message })

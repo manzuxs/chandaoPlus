@@ -53,6 +53,30 @@ function streamProcess(
           if (event.type === "stream_event") {
             const innerEvent = event.event
             if (innerEvent) {
+              if (innerEvent.type === "content_block_start" && innerEvent.content_block) {
+                const block = innerEvent.content_block
+                if (block.type === "tool_use" && block.name) {
+                  const toolName = block.name
+                  const toolInput = block.input || {}
+                  const rawPath = toolInput.path || toolInput.filePath || toolInput.file || toolInput.target || ""
+                  const targetPath = typeof rawPath === "string" ? rawPath.trim() : ""
+                  const rawCmd = toolInput.command || toolInput.cmd || ""
+                  const targetCmd = typeof rawCmd === "string" ? rawCmd.trim() : ""
+
+                  let statusText = `正在使用工具: ${toolName}...`
+                  if (toolName.includes("write") || toolName.includes("edit") || toolName.includes("replace") || toolName.includes("patch")) {
+                    statusText = targetPath ? `正在修改文件: ${targetPath}...` : "正在修改代码..."
+                  } else if (toolName.includes("read") || toolName.includes("view") || toolName.includes("show")) {
+                    statusText = targetPath ? `正在阅读文件: ${targetPath}...` : "正在阅读文件..."
+                  } else if (toolName.includes("bash") || toolName.includes("execute") || toolName.includes("run") || toolName.includes("cmd")) {
+                    statusText = targetCmd ? `正在执行命令: ${targetCmd}...` : "正在执行终端命令..."
+                  } else if (toolName.includes("glob") || toolName.includes("find") || toolName.includes("search")) {
+                    statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
+                  }
+                  logAgentChunk("Claude Code", { type: "status", content: statusText })
+                  onChunk({ type: "status", content: statusText })
+                }
+              }
               if (innerEvent.type === "content_block_delta" && innerEvent.delta) {
                 if (innerEvent.delta.type === "text_delta" && innerEvent.delta.text) {
                   logAgentText(innerEvent.delta.text)

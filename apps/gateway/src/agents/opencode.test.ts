@@ -148,4 +148,55 @@ describe("opencodeAdapter", () => {
       consoleLogSpy.mockRestore()
     }
   })
+
+  it("extracts path and command parameters to display user-friendly tool use status", async () => {
+    childProcessMock.execSync.mockReturnValue(Buffer.from(""))
+    const child = createOpencodeChild({ autoClose: false })
+    childProcessMock.spawn.mockReturnValue(child)
+    const onChunk = vi.fn()
+
+    const runPromise = opencodeAdapter.run({
+      workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "opencode" },
+      bundleDir: "/tmp/bundle",
+      request: {
+        workspaceId: "project-a",
+        agent: "opencode",
+        command: "estimate",
+        model: "opencode-go/kimi-k2.6",
+        effort: "medium",
+        permissionMode: "full",
+        page: { url: "https://example.com", title: "Example", markdown: "# Example", images: [], metadata: {} },
+        messages: [{ role: "user", content: "Hello" }],
+      },
+      skill: undefined,
+      sessionStore: undefined,
+      onChunk,
+    })
+
+    child.stdout.emit("data", Buffer.from(`${JSON.stringify({
+      type: "tool_use",
+      sessionID: "ses_tool",
+      part: {
+        type: "tool",
+        tool: "read",
+        input: { path: "src/utils.ts" }
+      }
+    })}\n`))
+    
+    child.stdout.emit("data", Buffer.from(`${JSON.stringify({
+      type: "tool_use",
+      sessionID: "ses_tool",
+      part: {
+        type: "tool",
+        tool: "bash",
+        arguments: { command: "pnpm test" }
+      }
+    })}\n`))
+
+    child.emit("close", 0)
+    await runPromise
+
+    expect(onChunk).toHaveBeenCalledWith({ type: "status", content: "正在阅读文件: src/utils.ts..." })
+    expect(onChunk).toHaveBeenCalledWith({ type: "status", content: "正在执行命令: pnpm test..." })
+  })
 })
