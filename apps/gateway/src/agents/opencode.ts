@@ -77,14 +77,13 @@ function streamProcessOpencode(
           logAgentText(event.part.text)
           onChunk({ type: "text", content: event.part.text })
         } else if (event.type === "step_start") {
-          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
+          console.log(`[OpenCode event] ${event.type} 会话：${event.sessionID || "无"}，事件：步骤启动...`)
           const startCount = eventCounts["step_start"] || 0
           if (startCount === 1) {
             logAgentChunk("OpenCode", { type: "status", content: "开始运行..." })
             onChunk({ type: "status", content: "开始运行..." })
           }
         } else if (event.part?.type === "tool" && event.part?.tool) {
-          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
           const toolName = event.part.tool
           const toolInput = event.part.input || event.part.arguments || {}
           
@@ -105,6 +104,7 @@ function streamProcessOpencode(
             statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
           }
           
+          console.log(`[OpenCode event] ${event.type} 会话：${event.sessionID || "无"}，事件：${statusText}`)
           logAgentChunk("OpenCode", { type: "status", content: statusText })
           onChunk({ type: "status", content: statusText })
         } else if (event.type === "error") {
@@ -112,7 +112,8 @@ function streamProcessOpencode(
           logAgentChunk("OpenCode", { type: "error", content: msg })
           onChunk({ type: "error", content: msg })
         } else {
-          console.log(`[OpenCode event] ${event.type} ${summarizeOpenCodeEvent(event)}`)
+          const reasonText = event.part?.reason ? ` (${event.part.reason})` : ""
+          console.log(`[OpenCode event] ${event.type} 会话：${event.sessionID || "无"}，事件：${event.type}${reasonText}`)
         }
       } catch {
         lastActivityAt = Date.now()

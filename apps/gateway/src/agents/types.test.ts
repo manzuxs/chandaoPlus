@@ -160,4 +160,18 @@ describe("buildPrompt", () => {
     expect(prompt).not.toContain("/tmp/bundle/metadata.json")
     expect(prompt).toContain("/tmp/bundle/conversation.md")
   })
+
+  it("includes workspace_guidelines and trailing anti-forget warnings", () => {
+    const prompt = buildPrompt({
+      command: "default",
+      workspaceRoot: "/ws/some_project",
+      bundleDir: "/tmp/bundle",
+      messages: [{ role: "user", content: "hello" }],
+    })
+
+    expect(prompt).toContain("<workspace_guidelines>")
+    expect(prompt).toContain("你当前运行在工作空间根目录（Cwd）下: /ws/some_project。")
+    expect(prompt).toContain("避免凭空猜测。")
+    expect(prompt).toContain("[注意] 你的当前工作空间在 /ws/some_project。")
+  })
 })

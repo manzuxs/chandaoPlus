@@ -59,7 +59,7 @@ export function buildPrompt(params: {
       }
     }
     requiredFilesXml = `\n\n<must_read_files>
-  <description>以下是当前工作空间的必读文件清单。修改代码、执行任务或进行回复时，你必须严格遵循这些文件中的定义、规范和设定：</description>
+  <description>以下是当前工作空间的必读文件清单。你在处理文件、执行任务或进行回复时，必须严格遵循这些文件中的定义、规范和设定：</description>
 ${fileBlocks.join("\n")}
 </must_read_files>`
   }
@@ -94,5 +94,13 @@ ${fileBlocks.join("\n")}
   <user_request>${escapeXml(lastMessage)}</user_request>
 </current_task>`
 
-  return `${sessionContext}${requiredFilesXml}\n\n${systemInstructions}\n\n${currentTask}`
+  const workspaceGuidelines = `<workspace_guidelines>
+  <rule>你当前运行在工作空间根目录（Cwd）下: ${workspaceRoot}。</rule>
+  <rule>【重要】在修改文件、执行操作或进行答复前，应当主动使用工具（如列出目录、查找或阅读文件）了解该工作空间的实际文件布局与内容上下文，避免凭空猜测。</rule>
+  <rule>若下方提供了 &lt;must_read_files&gt;，其中包含了你必须严格遵守的规则与规范，请确保后续一切操作与回复均符合其要求。</rule>
+</workspace_guidelines>`
+
+  const antiForgetWarning = `\n\n[注意] 你的当前工作空间在 ${workspaceRoot}。为确保任务准确，请优先使用工具查看此目录下的相关文件，切忌直接凭空猜测回复。`
+
+  return `${sessionContext}${requiredFilesXml}\n\n${workspaceGuidelines}\n\n${systemInstructions}\n\n${currentTask}${antiForgetWarning}`
 }
