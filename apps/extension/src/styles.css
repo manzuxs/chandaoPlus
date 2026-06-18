@@ -2119,3 +2119,122 @@ button {
   from, to { opacity: 1; }
   50% { opacity: 0; }
 }
+
+/* === ZenTao Batch Banner === */
+.zentao-batch-banner {
+  padding: var(--space-xs) var(--space-md);
+  background: rgba(247, 247, 245, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: var(--space-hair) solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+  animation: slide-down 0.25s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  .zentao-batch-banner {
+    background: rgba(26, 26, 30, 0.85);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.banner-badge {
+  background-color: var(--accent-magenta);
+  color: var(--canvas);
+  font-size: 10px;
+  font-weight: var(--weight-bold);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.banner-title {
+  font-size: 12px;
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-subtitle {
+  font-size: 11px;
+  color: var(--ink);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.banner-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.btn-batch {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: var(--weight-button);
+  white-space: nowrap;
+  border: var(--space-hair) solid transparent;
+  transition: all var(--transition-base);
+}
+
+.btn-batch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-batch-estimate {
+  background-color: rgba(255, 61, 139, 0.1);
+  color: var(--accent-magenta);
+  border-color: rgba(255, 61, 139, 0.2);
+}
+
+.btn-batch-estimate:not(:disabled):hover {
+  background-color: var(--accent-magenta);
+  color: var(--canvas);
+  box-shadow: 0 0 8px rgba(255, 61, 139, 0.4);
+}
+
+.btn-batch-fix {
+  background-color: rgba(30, 166, 74, 0.1);
+  color: var(--semantic-success);
+  border-color: rgba(30, 166, 74, 0.2);
+}
+
+.btn-batch-fix:not(:disabled):hover {
+  background-color: var(--semantic-success);
+  color: var(--canvas);
+  box-shadow: 0 0 8px rgba(30, 166, 74, 0.4);
+}

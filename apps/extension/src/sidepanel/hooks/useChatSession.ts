@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture } from "@chandaoplus/shared"
+import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture, SessionListItem } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
+import { extractZentaoBugDetailPageCapture } from "../../recipes/zendao-detail"
+import { hydrateImageAssets } from "@chandaoplus/extractor"
+
+async function fetchImageBase64(imgUrl: string): Promise<string> {
+  const response = await fetch(imgUrl)
+  const blob = await response.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      const base64 = result.split(",")[1] || ""
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
 
 type SessionState = {
   messages: ChatMessage[]
@@ -51,6 +68,7 @@ export function useChatSession(workspaceId: string) {
   const [sessionStates, setSessionStates] = useState<Record<string, SessionState>>({})
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionVersion, setSessionVersion] = useState(0)
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
   const abortControllersRef = useRef<Record<string, AbortController>>({})
   const tempSessionKey = workspaceId ? `temp:${workspaceId}` : "temp"
   // 用 ref 同步持有最新 sessionStates，避免在异步回调里读到旧快照
@@ -368,6 +386,7 @@ export function useChatSession(workspaceId: string) {
     }
   }, [sessionId, tempSessionKey])
 
+
   const addWorkspace = async (profile: WorkspaceProfile) => {
     try {
       const res = await fetch("http://127.0.0.1:3210/api/workspaces", {
@@ -563,8 +582,10 @@ export function useChatSession(workspaceId: string) {
     agent: "claude-code" | "codex" | "opencode"
     command: ChatCommand
     input: string
+    customPage?: PageCapture
+    targetSessionId?: string | null
   }) => {
-    let activeId = sessionId
+    let activeId = params.targetSessionId !== undefined ? params.targetSessionId : sessionId
     const targetKey = activeId || tempSessionKey
     const hasHistory = (sessionStates[targetKey]?.messages || []).length > 0
     
@@ -602,7 +623,9 @@ export function useChatSession(workspaceId: string) {
     try {
       // Step 1: Capture page
       let capturedPage: PageCapture
-      if (hasSkill) {
+      if (params.customPage) {
+        capturedPage = params.customPage
+      } else if (hasSkill) {
         capturedPage = await captureActiveTabPage()
       } else {
         capturedPage = {
@@ -988,6 +1011,142 @@ export function useChatSession(workspaceId: string) {
     delete abortControllersRef.current[key]
   }, [sessionId, tempSessionKey, stopRunningTask])
 
+  const isProcessingQueueRef = useRef(false)
+
+  const triggerBatchSkill = useCallback(async (items: { id: string; url: string }[], cmd: "estimate" | "fix") => {
+    if (items.length === 0) return
+    if (isProcessingQueueRef.current) {
+      alert("已有批量分析任务在后台排队，请等待完成。")
+      return
+    }
+    isProcessingQueueRef.current = true
+    setIsProcessingQueue(true)
+
+    try {
+      const sessionsRes = await fetch(`http://127.0.0.1:3210/api/sessions?workspaceId=${workspaceId}`)
+      const existingSessions: SessionListItem[] = sessionsRes.ok ? await sessionsRes.json() : []
+
+      for (const item of items) {
+        const matchedSession = existingSessions.find(s => 
+          s.title && (s.title.startsWith(`BUG #${item.id}:`) || s.title.includes(`BUG #${item.id}`))
+        )
+        const targetSessionId = matchedSession ? matchedSession.id : null
+
+        setSessionId(targetSessionId)
+
+        const targetKey = targetSessionId || tempSessionKey
+
+        if (matchedSession) {
+          try {
+            const sRes = await fetch(`http://127.0.0.1:3210/api/sessions/${matchedSession.id}`)
+            if (sRes.ok) {
+              const sessionData = await sRes.json()
+              setSessionStates((prev) => ({
+                ...prev,
+                [matchedSession.id]: {
+                  ...(prev[matchedSession.id] || { messages: [], sending: false, statusText: "" }),
+                  messages: sessionData.messages || [],
+                  agent: sessionData.agent || prev[matchedSession.id]?.agent,
+                  model: sessionData.model || prev[matchedSession.id]?.model,
+                  effort: sessionData.effort || prev[matchedSession.id]?.effort,
+                  permissionMode: sessionData.permissionMode || prev[matchedSession.id]?.permissionMode,
+                }
+              }))
+            }
+          } catch (e) {
+            console.error("Failed to preload target session detail:", e)
+          }
+        } else {
+          setSessionStates((prev) => {
+            const next = { ...prev }
+            delete next[tempSessionKey]
+            return next
+          })
+        }
+
+        setSessionStates((prev) => {
+          const state = prev[targetKey] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
+          return {
+            ...prev,
+            [targetKey]: {
+              ...state,
+              sending: true,
+              statusText: `正在抓取 BUG #${item.id} 详情数据...`
+            }
+          }
+        })
+
+        let pageCapture: PageCapture
+        try {
+          const response = await fetch(item.url, { credentials: "include" })
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          const html = await response.text()
+
+          const zentaoCapture = await extractZentaoBugDetailPageCapture({
+            url: item.url,
+            html,
+            title: `BUG #${item.id}`
+          })
+          if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
+
+          pageCapture = await hydrateImageAssets(fetchImageBase64, zentaoCapture)
+        } catch (err: any) {
+          console.error(`Failed to capture BUG #${item.id}:`, err)
+          setSessionStates((prev) => ({
+            ...prev,
+            [targetKey]: {
+              ...(prev[targetKey] || {}),
+              sending: false,
+              statusText: `抓取详情失败: ${err.message}`
+            }
+          }))
+          continue
+        }
+
+        try {
+          const activeState = targetSessionId
+            ? (sessionStatesRef.current[targetSessionId] || { agent: undefined })
+            : (sessionStatesRef.current[tempSessionKey] || { agent: undefined })
+          const targetAgent = activeState.agent || agent || "claude-code"
+
+          await send({
+            workspaceId,
+            agent: targetAgent,
+            command: cmd,
+            input: "",
+            customPage: pageCapture,
+            targetSessionId
+          })
+        } catch (err: any) {
+          console.error(`Failed to process AI execution for BUG #${item.id}:`, err)
+        }
+      }
+    } catch (err: any) {
+      console.error("Batch processing error:", err)
+    } finally {
+      isProcessingQueueRef.current = false
+      setIsProcessingQueue(false)
+      setSessionVersion((v) => v + 1)
+    }
+  }, [workspaceId, agent, tempSessionKey, send])
+
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.onMessage) return
+
+    const handleBatchSkillMessage = (message: any) => {
+      if (message.type === "TRIGGER_BATCH_SKILL") {
+        const items = message.items || []
+        const cmd = message.command
+        triggerBatchSkill(items, cmd).catch(console.error)
+      }
+    }
+
+    chrome.runtime.onMessage.addListener(handleBatchSkillMessage)
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleBatchSkillMessage)
+    }
+  }, [triggerBatchSkill])
+
   return {
     workspaces,
     skills,
@@ -1014,5 +1173,7 @@ export function useChatSession(workspaceId: string) {
     sessionId,
     sessionVersion,
     sessionStates,
+    triggerBatchSkill,
+    isProcessingQueue,
   }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildPrompt } from "./types"
+import { escapeXml } from "@chandaoplus/shared"
 
 const estimateSkill = {
   id: "estimate",
@@ -131,7 +132,7 @@ describe("buildPrompt", () => {
       expect(prompt).toContain("<must_read_files>")
       expect(prompt).toContain("<file path=\"GUIDELINES.md\">")
       expect(prompt).toContain("Code must be neat.")
-      expect(prompt).toContain("<file path=\"NON_EXISTENT.txt\" status=\"error\">")
+      expect(prompt).toContain(`<file>${escapeXml(path.join(wsRoot, "NON_EXISTENT.txt"))}</file>`)
     } finally {
       try {
         fs.unlinkSync(ruleFileAbs)

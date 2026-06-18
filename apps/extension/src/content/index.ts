@@ -1,7 +1,45 @@
 import { extractPageCapture, hydrateImageAssets } from "@chandaoplus/extractor"
 import type { PageCapture } from "@chandaoplus/shared"
 import { detectZentaoBugDetail, extractZentaoBugDetailPageCapture } from "../recipes/zendao-detail"
-import { collectZentaoBugLinks } from "../recipes/zendao-list"
+import { collectZentaoBugLinks, collectZentaoBugListStatus, isZentaoBugListUrl } from "../recipes/zendao-list"
+
+console.log("[chandaoPlus] Content script injected on page:", window.location.href)
+
+let statusReportTimer: number | null = null
+
+function isExtensionContextInvalidated(error: unknown): boolean {
+  return error instanceof Error && /Extension context invalidated/i.test(error.message)
+}
+
+function hasRuntimeContext(): boolean {
+  return typeof chrome !== "undefined" && Boolean(chrome.runtime?.id)
+}
+
+function stopStatusReporter() {
+  if (statusReportTimer !== null) {
+    window.clearInterval(statusReportTimer)
+    statusReportTimer = null
+  }
+}
+
+async function safeRuntimeSendMessage(message: unknown): Promise<boolean> {
+  if (!hasRuntimeContext()) {
+    stopStatusReporter()
+    return false
+  }
+
+  try {
+    await chrome.runtime.sendMessage(message)
+    return true
+  } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      stopStatusReporter()
+      return false
+    }
+
+    throw error
+  }
+}
 
 async function fetchImageBase64(imgUrl: string): Promise<string> {
   const response = await fetch(imgUrl)
@@ -40,14 +78,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return
   }
 
+
+
   if (message.type !== "CAPTURE_CURRENT_PAGE") return
 
   const html = document.documentElement.outerHTML
   const url = window.location.href
   const title = document.title
 
-  if (/bug-browse-/.test(url)) {
-    const bugLinks = collectZentaoBugLinks({ url, html, baseUrl: url })
+  if (isZentaoBugListUrl(url)) {
+    const bugLinks = collectZentaoBugLinks({ url, html, baseUrl: url, liveDocument: document })
     if (bugLinks.length === 0) {
       sendResponse({ error: "No bug links found on list page" })
       return true
@@ -59,7 +99,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         for (let i = 0; i < bugLinks.length; i++) {
           const bugUrl = bugLinks[i]
           try {
-            chrome.runtime.sendMessage({
+            void safeRuntimeSendMessage({
               type: "CAPTURE_PROGRESS",
               content: `正在抓取并处理第 ${i + 1}/${bugLinks.length} 个 BUG...`
             }).catch(() => {})
@@ -135,3 +175,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true
 })
+
+const reportStatus = () => {
+  if (!hasRuntimeContext()) {
+    stopStatusReporter()
+    return
+  }
+
+  const url = window.location.href
+  if (!isZentaoBugListUrl(url)) return
+
+  const html = document.documentElement.outerHTML
+  const { items, isAnyChecked } = collectZentaoBugListStatus({
+    url,
+    html,
+    baseUrl: url,
+    liveDocument: document
+  })
+
+  void safeRuntimeSendMessage({
+    type: "ZENTAO_LIST_STATUS_REPORT",
+    items,
+    isAnyChecked,
+    url
+  }).catch(() => {})
+}
+
+reportStatus()
+statusReportTimer = window.setInterval(reportStatus, 1500)

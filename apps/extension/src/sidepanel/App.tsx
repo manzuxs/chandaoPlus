@@ -5,6 +5,7 @@ import { ChatThread } from "./components/ChatThread"
 import { SkillManager } from "./components/SkillManager"
 import { useChatSession } from "./hooks/useChatSession"
 import { captureActiveTabPage, formatPageCapturePreview } from "../lib/page-capture"
+import { isZentaoBugListUrl } from "../recipes/zendao-list"
 
 // SVG Icons
 const CopyIcon = () => (
@@ -189,7 +190,90 @@ export function App() {
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates, triggerBatchSkill, isProcessingQueue } = useChatSession(workspaceId)
+
+  const [activeTabUrl, setActiveTabUrl] = useState<string>("")
+  const [activeTabId, setActiveTabId] = useState<number | null>(null)
+  const [zentaoBugsData, setZentaoBugsData] = useState<{
+    items: { id: string; url: string }[]
+    isAnyChecked: boolean
+  } | null>(null)
+
+  const updateActiveTab = useCallback(async () => {
+    if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.query) return
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+      const tab = tabs[0]
+      if (tab) {
+        setActiveTabUrl(tab.url || "")
+        setActiveTabId(tab.id ?? null)
+      }
+    } catch (err) {
+      console.error("Failed to query active tab:", err)
+    }
+  }, [])
+
+  useEffect(() => {
+    updateActiveTab()
+
+    if (typeof chrome === "undefined" || !chrome.tabs) return
+
+    const handleActivated = () => {
+      updateActiveTab()
+    }
+    const handleUpdated = (_tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+      if (changeInfo.url || changeInfo.status === "complete") {
+        updateActiveTab()
+      }
+    }
+
+    chrome.tabs.onActivated.addListener(handleActivated)
+    chrome.tabs.onUpdated.addListener(handleUpdated)
+
+    return () => {
+      chrome.tabs.onActivated.removeListener(handleActivated)
+      chrome.tabs.onUpdated.removeListener(handleUpdated)
+    }
+  }, [updateActiveTab])
+
+  useEffect(() => {
+    if (!activeTabId || !isZentaoBugListUrl(activeTabUrl)) {
+      setZentaoBugsData(null)
+      return
+    }
+
+    let active = true
+
+    const handleRuntimeMessage = (message: any, sender: chrome.runtime.MessageSender) => {
+      if (!active) return
+      if (message.type === "ZENTAO_LIST_STATUS_REPORT") {
+        if (sender.tab && sender.tab.id === activeTabId) {
+          setZentaoBugsData((prev) => {
+            // 冲突覆盖算法：如果有多个 frame (例如外壳 iframe 与内层列表 iframe) 上报数据，
+            // 优先采用 items.length > 0 的那个数据源，避免外壳的 0 元素数据覆盖真正的列表数据
+            if (!prev || message.items.length > 0 || prev.items.length === 0) {
+              return {
+                items: message.items,
+                isAnyChecked: !!message.isAnyChecked
+              }
+            }
+            return prev
+          })
+        }
+      }
+    }
+
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener(handleRuntimeMessage)
+    }
+
+    return () => {
+      active = false
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+        chrome.runtime.onMessage.removeListener(handleRuntimeMessage)
+      }
+    }
+  }, [activeTabId, activeTabUrl])
 
   // 同步 agent 状态：加载会话时跟随会话渠道，新会话时将本地偏好同步到 temp
   const prevSessionIdRef = useRef<string | null>(null)
@@ -440,6 +524,42 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {isZentaoBugListUrl(activeTabUrl) && zentaoBugsData && (
+        <div className="zentao-batch-banner">
+          <div className="banner-left">
+            <span className="banner-badge">ZenTao</span>
+            <div className="banner-text">
+              <span className="banner-title">检测到 Bug 列表页</span>
+              <span className="banner-subtitle">
+                {isProcessingQueue 
+                  ? "正在批量分析任务中..." 
+                  : zentaoBugsData.isAnyChecked 
+                    ? `已勾选 ${zentaoBugsData.items.length} 个缺陷` 
+                    : `未勾选 (默认处理前 ${zentaoBugsData.items.length} 个)`}
+              </span>
+            </div>
+          </div>
+          <div className="banner-right">
+            <button
+              type="button"
+              className="btn-batch btn-batch-estimate"
+              disabled={isProcessingQueue || zentaoBugsData.items.length === 0}
+              onClick={() => triggerBatchSkill(zentaoBugsData.items, "estimate")}
+            >
+              批量评估
+            </button>
+            <button
+              type="button"
+              className="btn-batch btn-batch-fix"
+              disabled={isProcessingQueue || zentaoBugsData.items.length === 0}
+              onClick={() => triggerBatchSkill(zentaoBugsData.items, "fix")}
+            >
+              批量修复
+            </button>
+          </div>
+        </div>
+      )}
 
       {showSkillManager && (
         <SkillManager

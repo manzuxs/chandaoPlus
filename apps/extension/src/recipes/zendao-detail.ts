@@ -39,6 +39,14 @@ async function parseDocument(html: string, baseUrl: string): Promise<Document> {
 function getBugIdFromUrl(url: string): string {
   try {
     const parsed = new URL(url)
+    const openParam = parsed.searchParams.get("open")
+    if (openParam) {
+      try {
+        const decoded = atob(decodeURIComponent(openParam))
+        const absoluteDecoded = decoded.startsWith("http") ? decoded : new URL(decoded, parsed.origin).toString()
+        return getBugIdFromUrl(absoluteDecoded)
+      } catch {}
+    }
     const bugId = parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId") || parsed.searchParams.get("id")
     if (bugId) return bugId
   } catch {}
@@ -231,6 +239,17 @@ export function isZentaoBugDetailUrl(url: string): boolean {
 
   try {
     const parsed = new URL(url)
+    const openParam = parsed.searchParams.get("open")
+    if (openParam) {
+      try {
+        const decoded = atob(decodeURIComponent(openParam))
+        const absoluteDecoded = decoded.startsWith("http") ? decoded : new URL(decoded, parsed.origin).toString()
+        if (isZentaoBugDetailUrl(absoluteDecoded)) return true
+      } catch {
+        const decodedParam = decodeURIComponent(openParam)
+        if (DETAIL_PATH_PATTERN.test(decodedParam) || (decodedParam.includes("m=bug") && decodedParam.includes("f=view"))) return true
+      }
+    }
     return parsed.searchParams.get("m") === "bug" &&
       parsed.searchParams.get("f") === "view" &&
       Boolean(parsed.searchParams.get("bugID") || parsed.searchParams.get("bugId") || parsed.searchParams.get("id"))
@@ -248,16 +267,17 @@ export async function extractZentaoBugDetailPageCapture(input: {
 
   const document = await parseDocument(input.html, input.url)
   const metadata = extractMetadata(document, input.url, input.title)
+  const displayTitle = metadata.bugId ? `BUG #${metadata.bugId}: ${metadata.title}` : (metadata.title || input.title)
   const focusedHtml = buildFocusedHtml(document)
   const capture = await extractPageCapture({
     html: focusedHtml,
     baseUrl: input.url,
-    title: metadata.title || input.title
+    title: displayTitle
   })
 
   return {
     ...capture,
-    title: metadata.title || capture.title,
+    title: displayTitle,
     metadata
   }
 }

@@ -7,6 +7,10 @@ describe("zentao-detail", () => {
     expect(isZentaoBugDetailUrl("https://zentao.example.com/index.php?m=bug&f=view&bugID=10765")).toBe(true)
     expect(isZentaoBugDetailUrl("https://zentao.example.com/index.php?m=bug&f=view&id=10841")).toBe(true)
     expect(isZentaoBugDetailUrl("https://zentao.local/index.php?m=product&f=view&id=1")).toBe(false)
+
+    // Supports embedded base64 open routing parameter
+    const encodedOpen = encodeURIComponent(btoa("/index.php?m=bug&f=view&bugID=10765"))
+    expect(isZentaoBugDetailUrl(`https://cd.shushangyun.com/index.php?m=index&f=index&open=${encodedOpen}`)).toBe(true)
   })
 
   it("extracts focused bug detail content and history comments", async () => {
