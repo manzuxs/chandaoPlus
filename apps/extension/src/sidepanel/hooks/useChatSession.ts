@@ -573,6 +573,8 @@ export function useChatSession(workspaceId: string) {
 
     const userMsg: ChatMessage = { role: "user", content: params.input || `执行命令: ${params.command}` }
     
+    const hasSkill = params.command && params.command !== "default"
+
     setSessionStates((prev) => {
       const state = prev[targetKey] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
       return {
@@ -581,7 +583,7 @@ export function useChatSession(workspaceId: string) {
           ...state,
           messages: [...state.messages, userMsg, { role: "assistant", content: "" }],
           sending: true,
-          statusText: "正在捕获页面内容..."
+          statusText: hasSkill ? "正在捕获页面内容..." : "正在连接网关..."
         }
       }
     })
@@ -599,7 +601,18 @@ export function useChatSession(workspaceId: string) {
 
     try {
       // Step 1: Capture page
-      const capturedPage = await captureActiveTabPage()
+      let capturedPage: PageCapture
+      if (hasSkill) {
+        capturedPage = await captureActiveTabPage()
+      } else {
+        capturedPage = {
+          url: "http://localhost/empty-page",
+          title: "无技能上下文",
+          markdown: "当前对话未开启特定技能，未捕获页面内容。",
+          images: [],
+          metadata: {}
+        }
+      }
       const latestState = sessionStatesRef.current[targetKey]
       const lockedBugId = getBugId(latestState?.lockedPage)
       const capturedBugId = getBugId(capturedPage)

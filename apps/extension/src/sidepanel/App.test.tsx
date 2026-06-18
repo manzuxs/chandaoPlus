@@ -774,7 +774,12 @@ describe("App", () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
       }
       if (url.includes("/api/skills")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            { id: "estimate", name: "评估工期", icon: "", description: "", keywords: [], promptTemplate: "template", outputFormat: "markdown", builtin: true }
+          ])
+        })
       }
       if (url.includes("/api/sessions?workspaceId=")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
@@ -823,6 +828,11 @@ describe("App", () => {
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
     const sendBtn = screen.getByRole("button", { name: "发送" })
+
+    // 第一次：在欢迎页点击技能 chip 以选择 "评估工期" 技能并发送
+    const skillChip = await screen.findByText("评估工期")
+    fireEvent.click(skillChip)
+
     fireEvent.change(textarea, { target: { value: "第一次发送" } })
     fireEvent.click(sendBtn)
     await waitFor(() => expect(sentPages).toHaveLength(1))
@@ -834,6 +844,7 @@ describe("App", () => {
       images: [],
       metadata: {}
     }
+    // 第二次：直接发送。此时技能依旧选中，因为当前页面没有 bugId，所以它会自动回落到已锁定的 BUG 101 上下文
     fireEvent.change(textarea, { target: { value: "离开 BUG 后继续问" } })
     fireEvent.click(sendBtn)
 
@@ -856,7 +867,12 @@ describe("App", () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }]) })
       }
       if (url.includes("/api/skills")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            { id: "estimate", name: "评估工期", icon: "", description: "", keywords: [], promptTemplate: "template", outputFormat: "markdown", builtin: true }
+          ])
+        })
       }
       if (url.includes("/api/sessions?workspaceId=")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
@@ -904,6 +920,11 @@ describe("App", () => {
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
     const sendBtn = screen.getByRole("button", { name: "发送" })
+
+    // 第一次：在欢迎页点击技能 chip 以选择 "评估工期" 技能
+    const skillChip = await screen.findByText("评估工期")
+    fireEvent.click(skillChip)
+
     fireEvent.change(textarea, { target: { value: "锁定 BUG 101" } })
     fireEvent.click(sendBtn)
     await waitFor(() => expect(customFetchMock.mock.calls.filter(([url]) => String(url).includes("/api/chat/stream"))).toHaveLength(1))
@@ -915,6 +936,8 @@ describe("App", () => {
       images: [],
       metadata: { pageKind: "zentao-bug-detail", bugId: "202" }
     }
+
+    // 第二次：直接发送。此时技能依旧选中，会自动触发对当前 BUG 202 的页面捕获
     fireEvent.change(textarea, { target: { value: "错误 BUG 上继续问" } })
     fireEvent.click(sendBtn)
 

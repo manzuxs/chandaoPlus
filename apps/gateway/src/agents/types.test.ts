@@ -139,4 +139,25 @@ describe("buildPrompt", () => {
       } catch (e) {}
     }
   })
+
+  it("omits page_context section when a dummy page object is provided", () => {
+    const prompt = buildPrompt({
+      command: "default",
+      workspaceRoot: "/ws",
+      bundleDir: "/tmp/bundle",
+      messages: [{ role: "user", content: "你好" }],
+      page: {
+        url: "http://localhost/empty-page",
+        title: "无技能上下文",
+        markdown: "当前对话未开启特定技能，未捕获页面内容。",
+        images: [],
+        metadata: {}
+      }
+    })
+
+    expect(prompt).not.toContain("<page_context>")
+    expect(prompt).not.toContain("/tmp/bundle/page.md")
+    expect(prompt).not.toContain("/tmp/bundle/metadata.json")
+    expect(prompt).toContain("/tmp/bundle/conversation.md")
+  })
 })
