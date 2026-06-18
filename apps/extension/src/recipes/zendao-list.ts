@@ -32,6 +32,12 @@ type ZentaoBugItem = {
   url: string
 }
 
+type RowSource = {
+  rowId?: string
+  root?: Element
+  cells: Element[]
+}
+
 function parseHtmlToDocument(html: string): Document {
   if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
     const parser = new window.DOMParser()
@@ -123,6 +129,36 @@ function getRowBugId(row: Element): string {
   return ""
 }
 
+function getRowBugUrlFromElements(elements: Element[], fallbackRowId: string | undefined, baseUrl: string): string {
+  const candidateElements = [
+    ...elements,
+    ...elements.flatMap((element) => Array.from(element.querySelectorAll("[href], [data-url], [data-href], [data-link], [data-row-url]")))
+  ]
+
+  for (const element of candidateElements) {
+    const references = [
+      element.getAttribute("href"),
+      element.getAttribute("data-url"),
+      element.getAttribute("data-href"),
+      element.getAttribute("data-link"),
+      element.getAttribute("data-row-url")
+    ].filter((value): value is string => Boolean(value))
+
+    for (const reference of references) {
+      if (isBugDetailReference(reference)) {
+        return resolveReferenceUrl(reference, baseUrl)
+      }
+
+      const bugId = extractBugIdFromReference(reference)
+      if (bugId) {
+        return resolveReferenceUrl(reference, baseUrl) || buildBugDetailUrl(baseUrl, bugId)
+      }
+    }
+  }
+
+  return buildBugDetailUrl(baseUrl, fallbackRowId || "")
+}
+
 function getRowBugUrl(row: Element, baseUrl: string): string {
   const candidateElements = [
     row,
@@ -189,6 +225,68 @@ function isRowChecked(row: Element): boolean {
   return Array.from(row.querySelectorAll("*")).some((element) => elementLooksChecked(element))
 }
 
+function isValidDtableRowId(value: string | null): value is string {
+  return Boolean(value) && value !== "HEADER"
+}
+
+function collectRowSources(doc: Document): RowSource[] {
+  const dtableCells = Array.from(doc.querySelectorAll(".dtable-cell[data-row]"))
+  if (dtableCells.length > 0) {
+    const grouped = new Map<string, Element[]>()
+
+    for (const cell of dtableCells) {
+      const rowId = cell.getAttribute("data-row")
+      if (!isValidDtableRowId(rowId)) continue
+      const bucket = grouped.get(rowId) || []
+      bucket.push(cell)
+      grouped.set(rowId, bucket)
+    }
+
+    if (grouped.size > 0) {
+      return Array.from(grouped.entries()).map(([rowId, cells]) => ({ rowId, cells }))
+    }
+  }
+
+  return Array.from(doc.querySelectorAll("tr, .dtable-row, [data-row]")).map((row) => ({
+    rowId: getRowBugId(row),
+    root: row,
+    cells: [row]
+  }))
+}
+
+function isSourceChecked(source: RowSource): boolean {
+  if (source.root) {
+    return isRowChecked(source.root)
+  }
+
+  // flat cell 模式：也检查 cells 的父级 .dtable-row 上的勾选状态，
+  // 因为某些禅道版本只在 row 元素上标记 is-checked 而不在 cell 上
+  for (const cell of source.cells) {
+    const parentRow = cell.closest(".dtable-row")
+    if (parentRow && elementLooksChecked(parentRow)) {
+      return true
+    }
+  }
+
+  const allElements = source.cells.flatMap((cell) => [cell, ...Array.from(cell.querySelectorAll("*"))])
+  const checkboxes = allElements
+    .filter((element): element is HTMLInputElement => element instanceof HTMLInputElement && element.type === "checkbox")
+
+  if (checkboxes.some((checkbox) => checkbox.checked || checkbox.getAttribute("checked") !== null)) {
+    return true
+  }
+
+  return allElements.some((element) => elementLooksChecked(element))
+}
+
+function getSourceBugUrl(source: RowSource, baseUrl: string): string {
+  if (source.root) {
+    return getRowBugUrl(source.root, baseUrl)
+  }
+
+  return getRowBugUrlFromElements(source.cells, source.rowId, baseUrl)
+}
+
 function collectBugRows(input: CollectZentaoBugInput): { checkedLinks: string[]; allLinks: string[]; hasCheckedRows: boolean } {
   if (!isZentaoBugListUrl(input.url)) {
     return { checkedLinks: [], allLinks: [], hasCheckedRows: false }
@@ -197,14 +295,14 @@ function collectBugRows(input: CollectZentaoBugInput): { checkedLinks: string[];
   const realBaseUrl = resolveZentaoListBaseUrl(input)
   const doc = input.liveDocument ?? parseHtmlToDocument(input.html)
 
-  const rows = Array.from(doc.querySelectorAll("tr, .dtable-row, [data-row]"))
+  const rows = collectRowSources(doc)
   const checkedLinks: string[] = []
   const allLinks: string[] = []
   let hasCheckedRows = false
 
   for (const row of rows) {
-    const absoluteUrl = getRowBugUrl(row, realBaseUrl)
-    const isChecked = isRowChecked(row)
+    const absoluteUrl = getSourceBugUrl(row, realBaseUrl)
+    const isChecked = isSourceChecked(row)
     if (isChecked) hasCheckedRows = true
     if (!absoluteUrl) continue
 

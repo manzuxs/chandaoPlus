@@ -199,6 +199,33 @@ export function App() {
     isAnyChecked: boolean
   } | null>(null)
 
+  const pullZentaoListStatus = useCallback(async (tabId: number) => {
+    if (typeof chrome === "undefined" || !chrome.tabs?.sendMessage) {
+      throw new Error("chrome.tabs.sendMessage is unavailable")
+    }
+
+    try {
+      return await chrome.tabs.sendMessage(tabId, { type: "GET_ZENTAO_LIST_STATUS" })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const needsReinject =
+        /Receiving end does not exist/i.test(message) ||
+        /Could not establish connection/i.test(message)
+
+      if (!needsReinject || !chrome.scripting?.executeScript) {
+        throw err
+      }
+
+      await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        files: ["loader.js"]
+      })
+
+      await new Promise((resolve) => window.setTimeout(resolve, 120))
+      return await chrome.tabs.sendMessage(tabId, { type: "GET_ZENTAO_LIST_STATUS" })
+    }
+  }, [])
+
   const updateActiveTab = useCallback(async () => {
     if (typeof chrome === "undefined" || !chrome.tabs || !chrome.tabs.query) return
     try {
@@ -249,13 +276,21 @@ export function App() {
       if (message.type === "ZENTAO_LIST_STATUS_REPORT") {
         if (sender.tab && sender.tab.id === activeTabId) {
           setZentaoBugsData((prev) => {
-            // 冲突覆盖算法：如果有多个 frame (例如外壳 iframe 与内层列表 iframe) 上报数据，
-            // 优先采用 items.length > 0 的那个数据源，避免外壳的 0 元素数据覆盖真正的列表数据
-            if (!prev || message.items.length > 0 || prev.items.length === 0) {
-              return {
-                items: message.items,
-                isAnyChecked: !!message.isAnyChecked
-              }
+            const items = message.items as { id: string; url: string }[]
+            const isAnyChecked = !!message.isAnyChecked
+            // 冲突覆盖算法：多 frame 场景下（外壳 + 内层 iframe），
+            // 保护有勾选的数据不被无勾选的 frame 数据覆盖
+            if (!prev || prev.items.length === 0) {
+              return { items, isAnyChecked }
+            }
+            if (isAnyChecked && items.length > 0) {
+              return { items, isAnyChecked }
+            }
+            if (prev.isAnyChecked && !isAnyChecked) {
+              return prev
+            }
+            if (items.length > 0) {
+              return { items, isAnyChecked }
             }
             return prev
           })
@@ -274,6 +309,55 @@ export function App() {
       }
     }
   }, [activeTabId, activeTabUrl])
+
+  useEffect(() => {
+    if (!activeTabId || !isZentaoBugListUrl(activeTabUrl) || typeof chrome === "undefined" || !chrome.tabs?.sendMessage) {
+      return
+    }
+
+    let active = true
+
+    const fetchStatus = async () => {
+      try {
+        const response = await pullZentaoListStatus(activeTabId)
+        if (!active || !response) return
+
+        setZentaoBugsData((prev) => {
+          const items = Array.isArray(response.items) ? response.items : []
+          const isAnyChecked = !!response.isAnyChecked
+          // 与 push 使用同样的冲突覆盖算法：
+          // 保护有勾选的数据不被无勾选的主框架数据覆盖
+          if (!prev || prev.items.length === 0) {
+            return { items, isAnyChecked }
+          }
+          if (isAnyChecked && items.length > 0) {
+            return { items, isAnyChecked }
+          }
+          if (prev.isAnyChecked && !isAnyChecked) {
+            return prev
+          }
+          if (items.length > 0) {
+            return { items, isAnyChecked }
+          }
+          return prev
+        })
+      } catch (err) {
+        if (active) {
+          console.debug("Failed to pull ZenTao list status from active tab:", err)
+        }
+      }
+    }
+
+    void fetchStatus()
+    const timer = window.setInterval(() => {
+      void fetchStatus()
+    }, 1500)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [activeTabId, activeTabUrl, pullZentaoListStatus])
 
   // 同步 agent 状态：加载会话时跟随会话渠道，新会话时将本地偏好同步到 temp
   const prevSessionIdRef = useRef<string | null>(null)

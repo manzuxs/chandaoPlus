@@ -72,9 +72,26 @@ async function buildPageCapture(input: { html: string; url: string; title: strin
   })
 }
 
+function getCurrentZentaoListStatus() {
+  const url = window.location.href
+  const html = document.documentElement.outerHTML
+
+  return collectZentaoBugListStatus({
+    url,
+    html,
+    baseUrl: url,
+    liveDocument: document
+  })
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "GET_PAGE_HTML") {
     sendResponse({ html: document.documentElement.outerHTML, title: document.title })
+    return
+  }
+
+  if (message.type === "GET_ZENTAO_LIST_STATUS") {
+    sendResponse(getCurrentZentaoListStatus())
     return
   }
 
@@ -185,13 +202,7 @@ const reportStatus = () => {
   const url = window.location.href
   if (!isZentaoBugListUrl(url)) return
 
-  const html = document.documentElement.outerHTML
-  const { items, isAnyChecked } = collectZentaoBugListStatus({
-    url,
-    html,
-    baseUrl: url,
-    liveDocument: document
-  })
+  const { items, isAnyChecked } = getCurrentZentaoListStatus()
 
   void safeRuntimeSendMessage({
     type: "ZENTAO_LIST_STATUS_REPORT",

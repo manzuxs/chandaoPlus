@@ -90,4 +90,37 @@ describe("collectZentaoBugListStatus", () => {
       isAnyChecked: true
     })
   })
+
+  it("detects selected bugs from flat dtable cells grouped by data-row", () => {
+    const html = `
+      <div id="bugs" class="dtable">
+        <div class="dtable-cell dtable-header-cell has-checkbox" data-col="id" data-row="HEADER" data-type="checkID">
+          <div class="dtable-checkbox checkbox-primary checked"><input type="checkbox"><label></label></div>
+        </div>
+        <div class="dtable-cell is-first-in-row has-checkbox is-checked" data-col="id" data-row="10771" data-type="checkID">
+          <div class="dtable-cell-content">10771<div class="dtable-checkbox checkbox-primary checked"><input type="checkbox"><label></label></div></div>
+        </div>
+        <div class="dtable-cell is-last-in-row is-checked" data-col="title" data-row="10771" data-type="title">
+          <div class="dtable-cell-content"><a href="/index.php?m=bug&f=view&bugID=10771">BUG 10771</a></div>
+        </div>
+        <div class="dtable-cell has-checkbox" data-col="id" data-row="10765" data-type="checkID">
+          <div class="dtable-cell-content">10765<div class="dtable-checkbox checkbox-primary"><input type="checkbox"><label></label></div></div>
+        </div>
+        <div class="dtable-cell" data-col="title" data-row="10765" data-type="title">
+          <div class="dtable-cell-content"><a href="/index.php?m=bug&f=view&bugID=10765">BUG 10765</a></div>
+        </div>
+      </div>
+    `
+
+    const result = collectZentaoBugListStatus({
+      url: "https://cd.shushangyun.com/index.php?m=bug&f=browse&product=78",
+      html,
+      baseUrl: "https://cd.shushangyun.com/index.php?m=bug&f=browse&product=78"
+    })
+
+    expect(result).toEqual({
+      items: [{ id: "10771", url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10771" }],
+      isAnyChecked: true
+    })
+  })
 })
