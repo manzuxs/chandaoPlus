@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import { join } from "node:path"
 import type { ChatMessage, ChatRequest, ChatStreamChunk, PageCapture, Skill, WorkspaceProfile } from "@chandaoplus/shared"
 import { escapeXml, formatPageCaptureToXml } from "@chandaoplus/shared"
 
@@ -25,8 +27,9 @@ export function buildPrompt(params: {
   pageUrl?: string
   skill?: Skill
   page?: PageCapture
+  requiredFiles?: string[]
 }): string {
-  const { command, workspaceRoot, bundleDir, messages, pageTitle = "", pageUrl = "", skill, page } = params
+  const { command, workspaceRoot, bundleDir, messages, pageTitle = "", pageUrl = "", skill, page, requiredFiles } = params
 
   // 1. Session Context
   const pageContextXml = page ? `\n${formatPageCaptureToXml(page, bundleDir)}` : ""
@@ -34,6 +37,31 @@ export function buildPrompt(params: {
   <workspace_root>${workspaceRoot}</workspace_root>
   <bundle_dir>${bundleDir}</bundle_dir>${pageContextXml}
 </session_context>`
+
+  // 1.5 Required Files (Must-read Files)
+  let requiredFilesXml = ""
+  if (requiredFiles && requiredFiles.length > 0) {
+    const fileBlocks: string[] = []
+    for (const relPath of requiredFiles) {
+      const absPath = join(workspaceRoot, relPath)
+      try {
+        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
+          const content = fs.readFileSync(absPath, "utf8")
+          fileBlocks.push(`  <file path="${escapeXml(relPath)}">
+<![CDATA[${content}]]>
+  </file>`)
+        } else {
+          fileBlocks.push(`  <file path="${escapeXml(relPath)}" status="error">文件未找到或非合法文件</file>`)
+        }
+      } catch (err: any) {
+        fileBlocks.push(`  <file path="${escapeXml(relPath)}" status="error">无法读取文件: ${escapeXml(err.message)}</file>`)
+      }
+    }
+    requiredFilesXml = `\n\n<must_read_files>
+  <description>以下是当前工作空间的必读文件清单。修改代码、执行任务或进行回复时，你必须严格遵循这些文件中的定义、规范和设定：</description>
+${fileBlocks.join("\n")}
+</must_read_files>`
+  }
 
   // 2. System Instructions
   let skillInstruction = ""
@@ -61,5 +89,5 @@ export function buildPrompt(params: {
   <user_request>${escapeXml(lastMessage)}</user_request>
 </current_task>`
 
-  return `${sessionContext}\n\n${systemInstructions}\n\n${currentTask}`
+  return `${sessionContext}${requiredFilesXml}\n\n${systemInstructions}\n\n${currentTask}`
 }

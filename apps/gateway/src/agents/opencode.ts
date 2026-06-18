@@ -156,6 +156,7 @@ export const opencodeAdapter: AgentAdapter = {
       pageUrl: request.page.url,
       skill,
       page: request.page,
+      requiredFiles: workspace.requiredFiles,
     })
 
     console.log("=== [OpenCode Agent Prompt] ===")

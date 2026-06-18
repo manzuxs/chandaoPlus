@@ -117,6 +117,7 @@ export const claudeCodeAdapter: AgentAdapter = {
       pageUrl: request.page.url,
       skill,
       page: request.page,
+      requiredFiles: workspace.requiredFiles,
     })
 
     console.log("=== [Claude Code Agent Prompt] ===")

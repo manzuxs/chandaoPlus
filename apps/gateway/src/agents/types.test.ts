@@ -105,4 +105,38 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("<page_content_markdown>")
     expect(prompt).toContain("# 详情")
   })
+
+  it("includes must_read_files section when requiredFiles are provided", () => {
+    const fs = require("node:fs")
+    const path = require("node:path")
+    
+    const wsRoot = path.join(__dirname, "../../../../temp_test_ws_dir_" + Date.now())
+    if (!fs.existsSync(wsRoot)) {
+      fs.mkdirSync(wsRoot, { recursive: true })
+    }
+    
+    const ruleFileRel = "GUIDELINES.md"
+    const ruleFileAbs = path.join(wsRoot, ruleFileRel)
+    fs.writeFileSync(ruleFileAbs, "Code must be neat.", "utf8")
+
+    try {
+      const prompt = buildPrompt({
+        command: "default",
+        workspaceRoot: wsRoot,
+        bundleDir: "/tmp/bundle",
+        messages: [{ role: "user", content: "开发一个新功能" }],
+        requiredFiles: [ruleFileRel, "NON_EXISTENT.txt"]
+      })
+
+      expect(prompt).toContain("<must_read_files>")
+      expect(prompt).toContain("<file path=\"GUIDELINES.md\">")
+      expect(prompt).toContain("Code must be neat.")
+      expect(prompt).toContain("<file path=\"NON_EXISTENT.txt\" status=\"error\">")
+    } finally {
+      try {
+        fs.unlinkSync(ruleFileAbs)
+        fs.rmdirSync(wsRoot)
+      } catch (e) {}
+    }
+  })
 })

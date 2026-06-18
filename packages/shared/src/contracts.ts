@@ -22,7 +22,8 @@ export const WorkspaceProfileSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   rootPath: z.string().min(1),
-  defaultAgent: AgentKindSchema
+  defaultAgent: AgentKindSchema,
+  requiredFiles: z.array(z.string()).optional()
 })
 
 export const PageImageSchema = z.object({

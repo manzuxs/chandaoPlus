@@ -31,6 +31,7 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
   const [id, setId] = useState("")
   const [label, setLabel] = useState("")
   const [rootPath, setRootPath] = useState("")
+  const [requiredFilesText, setRequiredFilesText] = useState("")
 
   const selectedWorkspace = workspaces.find((ws) => ws.id === value)
 
@@ -38,6 +39,7 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
     setId("")
     setLabel("")
     setRootPath("")
+    setRequiredFilesText("")
     setEditing(null)
     setShowForm(false)
   }
@@ -48,11 +50,27 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
       alert("请填写完整表单")
       return
     }
+    const parsedRequiredFiles = requiredFilesText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
     try {
       if (editing) {
-        await onUpdateWorkspace({ id, label, rootPath, defaultAgent: editing.defaultAgent })
+        await onUpdateWorkspace({
+          id,
+          label,
+          rootPath,
+          defaultAgent: editing.defaultAgent,
+          requiredFiles: parsedRequiredFiles,
+        })
       } else {
-        await onAddWorkspace({ id, label, rootPath, defaultAgent: "claude-code" })
+        await onAddWorkspace({
+          id,
+          label,
+          rootPath,
+          defaultAgent: "claude-code",
+          requiredFiles: parsedRequiredFiles,
+        })
       }
       resetForm()
       setIsOpen(false)
@@ -72,6 +90,7 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
     setId(ws.id)
     setLabel(ws.label)
     setRootPath(ws.rootPath)
+    setRequiredFilesText((ws.requiredFiles || []).join("\n"))
     setShowForm(true)
   }
 
@@ -192,6 +211,12 @@ export function WorkspaceSwitcher({ value, onChange, workspaces, onAddWorkspace,
                     onChange={(e) => setRootPath(e.target.value)}
                     placeholder="本地项目绝对路径"
                     required
+                  />
+                  <textarea
+                    value={requiredFilesText}
+                    onChange={(e) => setRequiredFilesText(e.target.value)}
+                    placeholder="必读文件相对路径列表 (每行一个，如: .github/CODE_GUIDELINES.md)"
+                    rows={3}
                   />
                   <div className="skill-form-actions">
                     <button type="button" className="btn-pill btn-pill-secondary" onClick={() => resetForm()}>

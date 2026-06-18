@@ -104,6 +104,7 @@ export const codexAdapter: AgentAdapter = {
       pageUrl: request.page.url,
       skill,
       page: request.page,
+      requiredFiles: workspace.requiredFiles,
     })
 
     console.log("=== [Codex Agent Prompt] ===")
