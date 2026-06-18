@@ -100,7 +100,7 @@ ${fileBlocks.join("\n")}
   <rule>若下方提供了 &lt;must_read_files&gt;，其中包含了你必须严格遵守的规则与规范，请确保后续一切操作与回复均符合其要求。</rule>
 </workspace_guidelines>`
 
-  const antiForgetWarning = `\n\n[注意] 你的当前工作空间在 ${workspaceRoot}。为确保任务准确，请优先使用工具查看此目录下的相关文件，切忌直接凭空猜测回复。`
+  const antiForgetWarning = `\n\n<workspace_reminder>\n  [注意] 你的当前工作空间在 ${workspaceRoot}。为确保任务准确，请优先使用工具查看此目录下的相关文件，切忌直接凭空猜测回复。\n</workspace_reminder>`
 
   return `${sessionContext}${requiredFilesXml}\n\n${workspaceGuidelines}\n\n${systemInstructions}\n\n${currentTask}${antiForgetWarning}`
 }

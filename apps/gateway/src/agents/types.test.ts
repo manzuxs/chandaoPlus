@@ -172,6 +172,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("<workspace_guidelines>")
     expect(prompt).toContain("你当前运行在工作空间根目录（Cwd）下: /ws/some_project。")
     expect(prompt).toContain("避免凭空猜测。")
+    expect(prompt).toContain("<workspace_reminder>")
     expect(prompt).toContain("[注意] 你的当前工作空间在 /ws/some_project。")
+    expect(prompt).toContain("</workspace_reminder>")
   })
 })
