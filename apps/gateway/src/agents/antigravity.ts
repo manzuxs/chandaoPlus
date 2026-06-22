@@ -23,7 +23,11 @@ function streamProcess(
     const child = spawn(command, args, { cwd, stdio: ["pipe", "pipe", "pipe"] })
     signal?.addEventListener("abort", () => {
       child.kill("SIGTERM")
+      setTimeout(() => {
+        try { child.kill("SIGKILL") } catch {}
+      }, 200)
     }, { once: true })
+
     
     child.stdin.write(prompt)
     child.stdin.end()

@@ -61,7 +61,7 @@ function renderMarkdown(md: string): string {
   })
 
   // 同步使用 marked 解析 Markdown
-  let html = marked.parse(escaped, { async: false }) as string
+  let html = marked.parse(escaped, { async: false, breaks: true }) as string
 
   // 配合 UI 规范样式，用 table-wrapper 包裹 table，确保圆角与 border-hairline 正确应用
   html = html
