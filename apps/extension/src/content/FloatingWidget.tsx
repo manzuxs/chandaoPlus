@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import type { Skill } from "@chandaoplus/shared"
 import { collectZentaoBugLinks, collectZentaoBugListStatus } from "../recipes/zendao-list"
+import { extractZentaoBugDetailPageCapture } from "../recipes/zendao-detail"
 import { getSettings } from "../lib/shared-settings"
 
 const BugIcon = () => (
@@ -137,9 +138,88 @@ export function FloatingWidget() {
         return
       }
 
+      // 在 Content Script（绝对同域环境，自动带登录 Cookie）中并行 fetch 并解析详情数据
+      const processedItems = await Promise.all(items.map(async (item) => {
+        try {
+          console.log("[chandaoPlus TaskCreator] Fetching BUG detail from url:", item.url)
+          const response = await fetch(item.url, { credentials: "include" })
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          const html = await response.text()
+
+          console.log("[chandaoPlus TaskCreator] Extracting BUG detail page capture...")
+          let zentaoCapture = await extractZentaoBugDetailPageCapture({
+            url: item.url,
+            html,
+            title: item.title || `BUG #${item.id}`
+          })
+
+          // 检查内容是否太少，太少的话尝试用 Zin 接口拉取
+          const isContentTooShort = !zentaoCapture || !zentaoCapture.markdown || zentaoCapture.markdown.length < 200
+          if (isContentTooShort) {
+            console.log(`[chandaoPlus TaskCreator] Content for BUG #${item.id} is too short. Trying Zin API...`)
+            try {
+              const zinUrl = new URL(item.url)
+              zinUrl.searchParams.set("zin", "1")
+              const zinRes = await fetch(zinUrl.toString(), {
+                credentials: "include",
+                headers: {
+                  "X-Requested-With": "XMLHttpRequest",
+                  "X-ZIN-App": "qa",
+                  "X-ZIN-Options": JSON.stringify({
+                    selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
+                    type: "list"
+                  }),
+                  "X-Zin-Cache-Time": "0"
+                }
+              })
+              if (zinRes.ok) {
+                const text = await zinRes.text()
+                let parsedHtml = text
+                try {
+                  const parsedJson = JSON.parse(text)
+                  const extractUsefulHtml = (value: unknown): string => {
+                    if (typeof value === "string") return value
+                    if (Array.isArray(value)) return value.map(extractUsefulHtml).join("\n")
+                    if (value && typeof value === "object") {
+                      return Object.values(value as Record<string, unknown>).map(extractUsefulHtml).join("\n")
+                    }
+                    return ""
+                  }
+                  parsedHtml = extractUsefulHtml(parsedJson)
+                } catch {}
+
+                if (parsedHtml) {
+                  const zinCapture = await extractZentaoBugDetailPageCapture({
+                    url: item.url,
+                    html: parsedHtml,
+                    title: item.title || `BUG #${item.id}`
+                  })
+                  if (zinCapture && zinCapture.markdown && zinCapture.markdown.length >= 200) {
+                    zentaoCapture = zinCapture
+                    console.log(`[chandaoPlus TaskCreator] Successfully captured BUG #${item.id} detail via Zin API.`)
+                  }
+                }
+              }
+            } catch (zinErr) {
+              console.warn(`[chandaoPlus TaskCreator] Zin API capture failed for BUG #${item.id}:`, zinErr)
+            }
+          }
+
+          if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
+
+          return {
+            ...item,
+            customPage: zentaoCapture
+          }
+        } catch (err: any) {
+          console.error(`[chandaoPlus TaskCreator] Failed to fetch/parse BUG #${item.id}:`, err)
+          return item
+        }
+      }))
+
       const payload = {
         type: "TRIGGER_BATCH_SKILL",
-        items,
+        items: processedItems,
         command: command, // 选中的技能 ID
         options: {
           agent: agentId,

@@ -1019,7 +1019,7 @@ export function useChatSession(workspaceId: string) {
   const isProcessingQueueRef = useRef(false)
 
   const triggerBatchSkill = useCallback(async (
-    items: { id: string; url: string; title?: string }[],
+    items: { id: string; url: string; title?: string; customPage?: PageCapture }[],
     cmd: string,
     options?: {
       agent?: "claude-code" | "codex" | "opencode"
@@ -1120,73 +1120,78 @@ export function useChatSession(workspaceId: string) {
           // 抓取逻辑
           let pageCapture: PageCapture
           try {
-            console.log("[useChatSession] Fetching BUG detail from url:", item.url)
-            const response = await fetch(item.url, { credentials: "include" })
-            if (!response.ok) throw new Error(`HTTP ${response.status}`)
-            const html = await response.text()
+            if (item.customPage) {
+              console.log("[useChatSession] Reusing pre-captured BUG detail page content from payload:", item.customPage.title)
+              pageCapture = await hydrateImageAssets(fetchImageBase64, item.customPage)
+            } else {
+              console.log("[useChatSession] No pre-captured detail. Fetching BUG detail from url:", item.url)
+              const response = await fetch(item.url, { credentials: "include" })
+              if (!response.ok) throw new Error(`HTTP ${response.status}`)
+              const html = await response.text()
 
-            console.log("[useChatSession] Extracting BUG detail page capture...")
-            let zentaoCapture = await extractZentaoBugDetailPageCapture({
-              url: item.url,
-              html,
-              title: item.title || `BUG #${item.id}`
-            })
+              console.log("[useChatSession] Extracting BUG detail page capture...")
+              let zentaoCapture = await extractZentaoBugDetailPageCapture({
+                url: item.url,
+                html,
+                title: item.title || `BUG #${item.id}`
+              })
 
-            // 检查内容是否太少，太少的话尝试用 Zin 接口拉取
-            const isContentTooShort = !zentaoCapture || !zentaoCapture.markdown || zentaoCapture.markdown.length < 200
-            if (isContentTooShort) {
-              console.log(`[useChatSession] Content for BUG #${item.id} is too short (${zentaoCapture?.markdown?.length || 0} chars). Trying Zin API...`)
-              try {
-                const zinUrl = new URL(item.url)
-                zinUrl.searchParams.set("zin", "1")
-                const zinRes = await fetch(zinUrl.toString(), {
-                  credentials: "include",
-                  headers: {
-                    "X-Requested-With": "XMLHttpRequest",
-                    "X-ZIN-App": "qa",
-                    "X-ZIN-Options": JSON.stringify({
-                      selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
-                      type: "list"
-                    }),
-                    "X-Zin-Cache-Time": "0"
-                  }
-                })
-                if (zinRes.ok) {
-                  const text = await zinRes.text()
-                  let parsedHtml = text
-                  try {
-                    const parsedJson = JSON.parse(text)
-                    const extractUsefulHtml = (value: unknown): string => {
-                      if (typeof value === "string") return value
-                      if (Array.isArray(value)) return value.map(extractUsefulHtml).join("\n")
-                      if (value && typeof value === "object") {
-                        return Object.values(value as Record<string, unknown>).map(extractUsefulHtml).join("\n")
+              // 检查内容是否太少，太少的话尝试用 Zin 接口拉取
+              const isContentTooShort = !zentaoCapture || !zentaoCapture.markdown || zentaoCapture.markdown.length < 200
+              if (isContentTooShort) {
+                console.log(`[useChatSession] Content for BUG #${item.id} is too short (${zentaoCapture?.markdown?.length || 0} chars). Trying Zin API...`)
+                try {
+                  const zinUrl = new URL(item.url)
+                  zinUrl.searchParams.set("zin", "1")
+                  const zinRes = await fetch(zinUrl.toString(), {
+                    credentials: "include",
+                    headers: {
+                      "X-Requested-With": "XMLHttpRequest",
+                      "X-ZIN-App": "qa",
+                      "X-ZIN-Options": JSON.stringify({
+                        selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
+                        type: "list"
+                      }),
+                      "X-Zin-Cache-Time": "0"
+                    }
+                  })
+                  if (zinRes.ok) {
+                    const text = await zinRes.text()
+                    let parsedHtml = text
+                    try {
+                      const parsedJson = JSON.parse(text)
+                      const extractUsefulHtml = (value: unknown): string => {
+                        if (typeof value === "string") return value
+                        if (Array.isArray(value)) return value.map(extractUsefulHtml).join("\n")
+                        if (value && typeof value === "object") {
+                          return Object.values(value as Record<string, unknown>).map(extractUsefulHtml).join("\n")
+                        }
+                        return ""
                       }
-                      return ""
-                    }
-                    parsedHtml = extractUsefulHtml(parsedJson)
-                  } catch {}
+                      parsedHtml = extractUsefulHtml(parsedJson)
+                    } catch {}
 
-                  if (parsedHtml) {
-                    const zinCapture = await extractZentaoBugDetailPageCapture({
-                      url: item.url,
-                      html: parsedHtml,
-                      title: item.title || `BUG #${item.id}`
-                    })
-                    if (zinCapture && zinCapture.markdown && zinCapture.markdown.length >= 200) {
-                      zentaoCapture = zinCapture
-                      console.log(`[useChatSession] Successfully captured BUG #${item.id} detail via Zin API.`)
+                    if (parsedHtml) {
+                      const zinCapture = await extractZentaoBugDetailPageCapture({
+                        url: item.url,
+                        html: parsedHtml,
+                        title: item.title || `BUG #${item.id}`
+                      })
+                      if (zinCapture && zinCapture.markdown && zinCapture.markdown.length >= 200) {
+                        zentaoCapture = zinCapture
+                        console.log(`[useChatSession] Successfully captured BUG #${item.id} detail via Zin API.`)
+                      }
                     }
                   }
+                } catch (zinErr) {
+                  console.warn(`[useChatSession] Zin API capture failed for BUG #${item.id}:`, zinErr)
                 }
-              } catch (zinErr) {
-                console.warn(`[useChatSession] Zin API capture failed for BUG #${item.id}:`, zinErr)
               }
+
+              if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
+
+              pageCapture = await hydrateImageAssets(fetchImageBase64, zentaoCapture)
             }
-
-            if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
-
-            pageCapture = await hydrateImageAssets(fetchImageBase64, zentaoCapture)
             console.log("[useChatSession] Successfully captured BUG detail page content:", pageCapture.title)
           } catch (err: any) {
             console.error(`[useChatSession] Failed to capture BUG #${item.id}:`, err)
