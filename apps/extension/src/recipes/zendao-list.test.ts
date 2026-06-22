@@ -30,7 +30,7 @@ describe("collectZentaoBugLinks", () => {
       html,
       baseUrl: "https://zentao.local/bug-browse-1.html"
     })
-    expect(result).toEqual(["https://zentao.local/bug-view-101.html"])
+    expect(result).toEqual(["https://zentao.local/bug-view-101.html?onlybody=yes"])
   })
 
   it("works correctly under GET query parameters style", () => {
@@ -44,7 +44,7 @@ describe("collectZentaoBugLinks", () => {
       html,
       baseUrl: "https://cd.shushangyun.com/index.php?m=bug&f=browse&product=78"
     })
-    expect(result).toEqual(["https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=101"])
+    expect(result).toEqual(["https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=101&onlybody=yes"])
   })
 
   it("prefers live DOM checkbox state even when outerHTML is stale", () => {
@@ -66,7 +66,7 @@ describe("collectZentaoBugLinks", () => {
       liveDocument: doc
     })
 
-    expect(result).toEqual(["https://zentao.local/bug-view-102.html"])
+    expect(result).toEqual(["https://zentao.local/bug-view-102.html?onlybody=yes"])
   })
 })
 
@@ -86,7 +86,7 @@ describe("collectZentaoBugListStatus", () => {
     })
 
     expect(result).toEqual({
-      items: [{ id: "10771", url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10771" }],
+      items: [{ id: "10771", url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10771&onlybody=yes", title: "BUG #10771" }],
       isAnyChecked: true
     })
   })
@@ -119,7 +119,7 @@ describe("collectZentaoBugListStatus", () => {
     })
 
     expect(result).toEqual({
-      items: [{ id: "10771", url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10771" }],
+      items: [{ id: "10771", url: "https://cd.shushangyun.com/index.php?m=bug&f=view&bugID=10771&onlybody=yes", title: "BUG 10771" }],
       isAnyChecked: true
     })
   })

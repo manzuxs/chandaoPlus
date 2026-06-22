@@ -470,6 +470,25 @@ export function App() {
     }
   }, [])
 
+  // Synchronize workspaceId if it changes in storage (e.g. from floating widget)
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.onChanged) return
+
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === "local" && changes.lastWorkspaceId) {
+        const newVal = changes.lastWorkspaceId.newValue
+        if (newVal && newVal !== workspaceId) {
+          setWorkspaceId(newVal)
+        }
+      }
+    }
+
+    chrome.storage.onChanged.addListener(handleStorageChange)
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange)
+    }
+  }, [workspaceId])
+
   // Load session list for workspace (only on workspace change or create/delete, NOT on session switch)
   useEffect(() => {
     if (!workspaceId) return
@@ -609,41 +628,7 @@ export function App() {
         </div>
       </header>
 
-      {isZentaoBugListUrl(activeTabUrl) && zentaoBugsData && (
-        <div className="zentao-batch-banner">
-          <div className="banner-left">
-            <span className="banner-badge">ZenTao</span>
-            <div className="banner-text">
-              <span className="banner-title">检测到 Bug 列表页</span>
-              <span className="banner-subtitle">
-                {isProcessingQueue 
-                  ? "正在批量分析任务中..." 
-                  : zentaoBugsData.isAnyChecked 
-                    ? `已勾选 ${zentaoBugsData.items.length} 个缺陷` 
-                    : `未勾选 (默认处理前 ${zentaoBugsData.items.length} 个)`}
-              </span>
-            </div>
-          </div>
-          <div className="banner-right">
-            <button
-              type="button"
-              className="btn-batch btn-batch-estimate"
-              disabled={isProcessingQueue || zentaoBugsData.items.length === 0}
-              onClick={() => triggerBatchSkill(zentaoBugsData.items, "estimate")}
-            >
-              批量评估
-            </button>
-            <button
-              type="button"
-              className="btn-batch btn-batch-fix"
-              disabled={isProcessingQueue || zentaoBugsData.items.length === 0}
-              onClick={() => triggerBatchSkill(zentaoBugsData.items, "fix")}
-            >
-              批量修复
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {showSkillManager && (
         <SkillManager

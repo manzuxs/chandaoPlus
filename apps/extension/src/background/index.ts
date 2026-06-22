@@ -386,6 +386,98 @@ if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage)
         .catch((err: any) => sendResponse({ error: err.message }))
       return true
     }
+
+    // ── Floating widget: proxy API requests ──
+
+    if (message.type === "FLOATING_GET_SKILLS") {
+      fetch("http://127.0.0.1:3210/api/skills")
+        .then((r) => r.json())
+        .then((data) => sendResponse(data))
+        .catch(() => sendResponse([]))
+      return true
+    }
+
+    if (message.type === "FLOATING_GET_WORKSPACES") {
+      fetch("http://127.0.0.1:3210/api/workspaces")
+        .then((r) => r.json())
+        .then((data) => sendResponse(data))
+        .catch(() => sendResponse([]))
+      return true
+    }
+  })
+}
+
+// ── Floating widget: Port-based SSE stream forwarding ──
+
+if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnect) {
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== "floating-chat") return
+
+    let abortController: AbortController | null = null
+
+    port.onMessage.addListener(async (msg) => {
+      if (msg.type === "CHAT_STREAM" && msg.payload) {
+        abortController = new AbortController()
+
+        try {
+          const response = await fetch("http://127.0.0.1:3210/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(msg.payload),
+            signal: abortController.signal
+          })
+
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+            port.postMessage({ type: "error", content: err.error || `HTTP ${response.status}` })
+            port.postMessage({ type: "done" })
+            return
+          }
+
+          const reader = response.body?.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ""
+
+          while (reader) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split("\n")
+            buffer = lines.pop() || ""
+
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (trimmed.startsWith("data: ")) {
+                try {
+                  const chunk = JSON.parse(trimmed.slice(6))
+                  port.postMessage(chunk)
+                } catch {
+                  // Ignore partial SSE chunk parse errors
+                }
+              }
+            }
+          }
+
+          port.postMessage({ type: "done" })
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            port.postMessage({ type: "error", content: err.message })
+          }
+          port.postMessage({ type: "done" })
+        } finally {
+          abortController = null
+        }
+      }
+
+      if (msg.type === "STOP") {
+        abortController?.abort()
+      }
+    })
+
+    port.onDisconnect.addListener(() => {
+      abortController?.abort()
+    })
   })
 }
 

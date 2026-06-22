@@ -214,3 +214,42 @@ const reportStatus = () => {
 
 reportStatus()
 statusReportTimer = window.setInterval(reportStatus, 1500)
+
+// ── Floating Chat Widget ──
+// 仅在 Bug 列表页动态加载悬浮聊天窗口（通过 Shadow DOM 隔离）
+
+let floatingMounted = false
+let floatingUnmount: (() => void) | null = null
+
+async function tryMountFloating() {
+  const url = window.location.href
+  if (isZentaoBugListUrl(url) && !floatingMounted) {
+    try {
+      const { mountFloatingWidget, unmountFloatingWidget } = await import(
+        /* @vite-ignore */
+        chrome.runtime.getURL("src/content/floating.js")
+      )
+      mountFloatingWidget()
+      floatingMounted = true
+      floatingUnmount = unmountFloatingWidget
+    } catch (err) {
+      console.error("[chandaoPlus] Failed to mount floating widget:", err)
+    }
+  } else if (!isZentaoBugListUrl(url) && floatingMounted) {
+    floatingUnmount?.()
+    floatingMounted = false
+    floatingUnmount = null
+  }
+}
+
+tryMountFloating()
+
+// 监听禅道 SPA 导航（URL 变化但不刷新页面）
+let lastUrl = window.location.href
+const urlObserver = new MutationObserver(() => {
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href
+    tryMountFloating()
+  }
+})
+urlObserver.observe(document.documentElement, { childList: true, subtree: true })

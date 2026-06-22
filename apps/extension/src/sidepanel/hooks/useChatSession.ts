@@ -584,9 +584,12 @@ export function useChatSession(workspaceId: string) {
     input: string
     customPage?: PageCapture
     targetSessionId?: string | null
+    customTempSessionKey?: string
+    skipSetSessionId?: boolean
   }) => {
     let activeId = params.targetSessionId !== undefined ? params.targetSessionId : sessionId
-    const targetKey = activeId || tempSessionKey
+    const tempKey = params.customTempSessionKey || tempSessionKey
+    const targetKey = activeId || tempKey
     const hasHistory = (sessionStates[targetKey]?.messages || []).length > 0
     
     // Check if currently sending for this specific targetKey
@@ -673,7 +676,7 @@ export function useChatSession(workspaceId: string) {
       }
 
       setSessionStates((prev) => {
-        const key = activeId || tempSessionKey
+        const key = activeId || tempKey
         const state = prev[key]
         return {
           ...prev,
@@ -689,7 +692,7 @@ export function useChatSession(workspaceId: string) {
 
       const activeState = activeId
         ? (sessionStates[activeId] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
-        : (sessionStates[tempSessionKey] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
+        : (sessionStates[tempKey] || { messages: [], sending: false, statusText: "", model: "default", effort: "medium", permissionMode: "full" })
 
       const payload: Record<string, unknown> = {
         workspaceId: params.workspaceId,
@@ -734,7 +737,7 @@ export function useChatSession(workspaceId: string) {
           if (trimmed.startsWith("data: ")) {
             try {
               const chunk = JSON.parse(trimmed.slice(6))
-              const currentKey = activeId || tempSessionKey
+              const currentKey = activeId || tempKey
               if (typeof chunk.seq === "number") {
                 lastSeqRef.current[currentKey] = chunk.seq
               }
@@ -743,15 +746,17 @@ export function useChatSession(workspaceId: string) {
               }
 
               if (chunk.type === "meta" && chunk.sessionId) {
-                const sourceKey = activeId || tempSessionKey
+                const sourceKey = activeId || tempKey
                 const newId = chunk.sessionId
                 activeId = newId
-                setSessionId(newId)
+                if (!params.skipSetSessionId) {
+                  setSessionId(newId)
+                }
                 setSessionStates((prev) => {
                   const sourceState = prev[sourceKey] || { messages: [], sending: true, statusText: "", model: "default", effort: "medium", permissionMode: "full" }
                   const next = { ...prev }
-                  if (sourceKey === tempSessionKey) {
-                    delete next[tempSessionKey]
+                  if (sourceKey === tempKey) {
+                    delete next[tempKey]
                   }
                   next[newId] = {
                     messages: sourceState.messages,
@@ -772,7 +777,7 @@ export function useChatSession(workspaceId: string) {
                     delete abortControllersRef.current[sourceKey]
                   }
                 }
-                if (sourceKey === tempSessionKey) {
+                if (sourceKey === tempKey) {
                   setSessionVersion((v) => v + 1)
                 }
               } else if (chunk.type === "status" || chunk.type === "progress") {
@@ -832,7 +837,7 @@ export function useChatSession(workspaceId: string) {
     } catch (err: any) {
       // fetch 被 abort 时静默结束，不报错
       if (err.name === "AbortError") {
-        const currentKey = activeId || tempSessionKey
+        const currentKey = activeId || tempKey
         setSessionStates((prev) => {
           const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
           const nextMessages = [...state.messages]
@@ -846,7 +851,7 @@ export function useChatSession(workspaceId: string) {
         })
       } else {
         console.error(err)
-        const currentKey = activeId || tempSessionKey
+        const currentKey = activeId || tempKey
         setSessionStates((prev) => {
           const state = prev[currentKey] || { messages: [], sending: false, statusText: "" }
           const nextMessages = [...state.messages]
@@ -875,7 +880,7 @@ export function useChatSession(workspaceId: string) {
       if (abortControllersRef.current[targetKey] === controller) {
         delete abortControllersRef.current[targetKey]
       }
-      const currentKey = activeId || tempSessionKey
+      const currentKey = activeId || tempKey
       if (currentKey !== targetKey && abortControllersRef.current[currentKey] === controller) {
         delete abortControllersRef.current[currentKey]
       }
@@ -1013,122 +1018,229 @@ export function useChatSession(workspaceId: string) {
 
   const isProcessingQueueRef = useRef(false)
 
-  const triggerBatchSkill = useCallback(async (items: { id: string; url: string }[], cmd: "estimate" | "fix") => {
-    if (items.length === 0) return
-    if (isProcessingQueueRef.current) {
-      alert("已有批量分析任务在后台排队，请等待完成。")
+  const triggerBatchSkill = useCallback(async (
+    items: { id: string; url: string; title?: string }[],
+    cmd: string,
+    options?: {
+      agent?: "claude-code" | "codex" | "opencode"
+      model?: string
+      effort?: any
+      permissionMode?: any
+      description?: string
+    }
+  ) => {
+    console.log("[useChatSession] triggerBatchSkill triggered. items:", items, "cmd:", cmd, "options:", options)
+    if (items.length === 0) {
+      console.warn("[useChatSession] triggerBatchSkill: No items to process.")
       return
     }
-    isProcessingQueueRef.current = true
+    
+    // 我们保留加载状态指示，但不加弹窗拦截，允许连续派发
     setIsProcessingQueue(true)
 
     try {
+      console.log("[useChatSession] Fetching existing sessions for workspace:", workspaceId)
       const sessionsRes = await fetch(`http://127.0.0.1:3210/api/sessions?workspaceId=${workspaceId}`)
       const existingSessions: SessionListItem[] = sessionsRes.ok ? await sessionsRes.json() : []
+      console.log("[useChatSession] Loaded existing sessions:", existingSessions.length)
 
-      for (const item of items) {
-        const matchedSession = existingSessions.find(s => 
-          s.title && (s.title.startsWith(`BUG #${item.id}:`) || s.title.includes(`BUG #${item.id}`))
-        )
-        const targetSessionId = matchedSession ? matchedSession.id : null
-
-        setSessionId(targetSessionId)
-
-        const targetKey = targetSessionId || tempSessionKey
-
-        if (matchedSession) {
-          try {
-            const sRes = await fetch(`http://127.0.0.1:3210/api/sessions/${matchedSession.id}`)
-            if (sRes.ok) {
-              const sessionData = await sRes.json()
-              setSessionStates((prev) => ({
-                ...prev,
-                [matchedSession.id]: {
-                  ...(prev[matchedSession.id] || { messages: [], sending: false, statusText: "" }),
-                  messages: sessionData.messages || [],
-                  agent: sessionData.agent || prev[matchedSession.id]?.agent,
-                  model: sessionData.model || prev[matchedSession.id]?.model,
-                  effort: sessionData.effort || prev[matchedSession.id]?.effort,
-                  permissionMode: sessionData.permissionMode || prev[matchedSession.id]?.permissionMode,
-                }
-              }))
+      // 用 Promise.all 并行处理所有项目
+      await Promise.all(items.map(async (item) => {
+        try {
+          console.log("[useChatSession] Starting task for item:", item)
+          const matchedSession = existingSessions.find(s => 
+            s.title && (s.title.startsWith(`BUG #${item.id}:`) || s.title.includes(`BUG #${item.id}`))
+          )
+          
+          // 如果对应的 BUG 会话已经存在，并且正在执行（sending === true），则直接放弃任务
+          if (matchedSession) {
+            const isSending = sessionStatesRef.current[matchedSession.id]?.sending === true
+            if (isSending) {
+              console.log(`[useChatSession] Session ${matchedSession.id} for BUG #${item.id} is already running. Skipping.`)
+              return
             }
-          } catch (e) {
-            console.error("Failed to preload target session detail:", e)
           }
-        } else {
+
+          const targetSessionId = matchedSession ? matchedSession.id : null
+          const customTempKey = targetSessionId ? undefined : `temp_${item.id}`
+          const targetKey = targetSessionId || customTempKey!
+
+          if (matchedSession) {
+            try {
+              const sRes = await fetch(`http://127.0.0.1:3210/api/sessions/${matchedSession.id}`)
+              if (sRes.ok) {
+                const sessionData = await sRes.json()
+                setSessionStates((prev) => ({
+                  ...prev,
+                  [matchedSession.id]: {
+                    ...(prev[matchedSession.id] || { messages: [], sending: false, statusText: "" }),
+                    messages: sessionData.messages || [],
+                    agent: options?.agent || sessionData.agent || prev[matchedSession.id]?.agent,
+                    model: options?.model || sessionData.model || prev[matchedSession.id]?.model,
+                    effort: options?.effort || sessionData.effort || prev[matchedSession.id]?.effort,
+                    permissionMode: options?.permissionMode || sessionData.permissionMode || prev[matchedSession.id]?.permissionMode,
+                  }
+                }))
+              }
+            } catch (e) {
+              console.error("Failed to preload target session detail:", e)
+            }
+          } else {
+            setSessionStates((prev) => {
+              const next = { ...prev }
+              delete next[targetKey]
+              return next
+            })
+          }
+
           setSessionStates((prev) => {
-            const next = { ...prev }
-            delete next[tempSessionKey]
-            return next
-          })
-        }
-
-        setSessionStates((prev) => {
-          const state = prev[targetKey] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
-          return {
-            ...prev,
-            [targetKey]: {
-              ...state,
-              sending: true,
-              statusText: `正在抓取 BUG #${item.id} 详情数据...`
+            const state = prev[targetKey] || { 
+              messages: [], 
+              sending: false, 
+              statusText: "", 
+              agent: options?.agent || undefined, 
+              model: options?.model || "default", 
+              effort: options?.effort || "medium", 
+              permissionMode: options?.permissionMode || "full" 
             }
+            return {
+              ...prev,
+              [targetKey]: {
+                ...state,
+                agent: options?.agent || state.agent,
+                model: options?.model || state.model,
+                effort: options?.effort || state.effort,
+                permissionMode: options?.permissionMode || state.permissionMode,
+                sending: true,
+                statusText: `正在抓取 BUG #${item.id} 详情数据...`
+              }
+            }
+          })
+
+          // 抓取逻辑
+          let pageCapture: PageCapture
+          try {
+            console.log("[useChatSession] Fetching BUG detail from url:", item.url)
+            const response = await fetch(item.url, { credentials: "include" })
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            const html = await response.text()
+
+            console.log("[useChatSession] Extracting BUG detail page capture...")
+            let zentaoCapture = await extractZentaoBugDetailPageCapture({
+              url: item.url,
+              html,
+              title: item.title || `BUG #${item.id}`
+            })
+
+            // 检查内容是否太少，太少的话尝试用 Zin 接口拉取
+            const isContentTooShort = !zentaoCapture || !zentaoCapture.markdown || zentaoCapture.markdown.length < 200
+            if (isContentTooShort) {
+              console.log(`[useChatSession] Content for BUG #${item.id} is too short (${zentaoCapture?.markdown?.length || 0} chars). Trying Zin API...`)
+              try {
+                const zinUrl = new URL(item.url)
+                zinUrl.searchParams.set("zin", "1")
+                const zinRes = await fetch(zinUrl.toString(), {
+                  credentials: "include",
+                  headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "X-ZIN-App": "qa",
+                    "X-ZIN-Options": JSON.stringify({
+                      selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
+                      type: "list"
+                    }),
+                    "X-Zin-Cache-Time": "0"
+                  }
+                })
+                if (zinRes.ok) {
+                  const text = await zinRes.text()
+                  let parsedHtml = text
+                  try {
+                    const parsedJson = JSON.parse(text)
+                    const extractUsefulHtml = (value: unknown): string => {
+                      if (typeof value === "string") return value
+                      if (Array.isArray(value)) return value.map(extractUsefulHtml).join("\n")
+                      if (value && typeof value === "object") {
+                        return Object.values(value as Record<string, unknown>).map(extractUsefulHtml).join("\n")
+                      }
+                      return ""
+                    }
+                    parsedHtml = extractUsefulHtml(parsedJson)
+                  } catch {}
+
+                  if (parsedHtml) {
+                    const zinCapture = await extractZentaoBugDetailPageCapture({
+                      url: item.url,
+                      html: parsedHtml,
+                      title: item.title || `BUG #${item.id}`
+                    })
+                    if (zinCapture && zinCapture.markdown && zinCapture.markdown.length >= 200) {
+                      zentaoCapture = zinCapture
+                      console.log(`[useChatSession] Successfully captured BUG #${item.id} detail via Zin API.`)
+                    }
+                  }
+                }
+              } catch (zinErr) {
+                console.warn(`[useChatSession] Zin API capture failed for BUG #${item.id}:`, zinErr)
+              }
+            }
+
+            if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
+
+            pageCapture = await hydrateImageAssets(fetchImageBase64, zentaoCapture)
+            console.log("[useChatSession] Successfully captured BUG detail page content:", pageCapture.title)
+          } catch (err: any) {
+            console.error(`[useChatSession] Failed to capture BUG #${item.id}:`, err)
+            setSessionStates((prev) => ({
+              ...prev,
+              [targetKey]: {
+                ...(prev[targetKey] || {}),
+                sending: false,
+                statusText: `抓取详情失败: ${err.message}`
+              }
+            }))
+            return // 跳过这一个，继续其他并行任务
           }
-        })
 
-        let pageCapture: PageCapture
-        try {
-          const response = await fetch(item.url, { credentials: "include" })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const html = await response.text()
+          // 执行 send 发送
+          try {
+            const activeState = targetSessionId
+              ? (sessionStatesRef.current[targetSessionId] || { agent: undefined })
+              : (sessionStatesRef.current[targetKey] || { agent: undefined })
+            const targetAgent = options?.agent || activeState.agent || agent || "claude-code"
 
-          const zentaoCapture = await extractZentaoBugDetailPageCapture({
-            url: item.url,
-            html,
-            title: `BUG #${item.id}`
-          })
-          if (!zentaoCapture) throw new Error("无法从页面中提取 BUG 详情")
+            console.log("[useChatSession] Invoking send() to execute gateway session...", {
+              workspaceId,
+              agent: targetAgent,
+              command: cmd,
+              targetSessionId,
+              customTempSessionKey: customTempKey
+            })
 
-          pageCapture = await hydrateImageAssets(fetchImageBase64, zentaoCapture)
-        } catch (err: any) {
-          console.error(`Failed to capture BUG #${item.id}:`, err)
-          setSessionStates((prev) => ({
-            ...prev,
-            [targetKey]: {
-              ...(prev[targetKey] || {}),
-              sending: false,
-              statusText: `抓取详情失败: ${err.message}`
-            }
-          }))
-          continue
+            await send({
+              workspaceId,
+              agent: targetAgent as any,
+              command: cmd as any,
+              input: options?.description || "",
+              customPage: pageCapture,
+              targetSessionId,
+              customTempSessionKey: customTempKey,
+              skipSetSessionId: true // 批量任务在后台并行执行，不要篡改当前聚焦的 sessionId
+            })
+            console.log("[useChatSession] send() finished executing for item ID:", item.id)
+          } catch (err: any) {
+            console.error(`[useChatSession] Failed to process AI execution for BUG #${item.id}:`, err)
+          }
+        } catch (itemErr) {
+          console.error(`[useChatSession] Error in processing loop for item ${item.id}:`, itemErr)
         }
-
-        try {
-          const activeState = targetSessionId
-            ? (sessionStatesRef.current[targetSessionId] || { agent: undefined })
-            : (sessionStatesRef.current[tempSessionKey] || { agent: undefined })
-          const targetAgent = activeState.agent || agent || "claude-code"
-
-          await send({
-            workspaceId,
-            agent: targetAgent,
-            command: cmd,
-            input: "",
-            customPage: pageCapture,
-            targetSessionId
-          })
-        } catch (err: any) {
-          console.error(`Failed to process AI execution for BUG #${item.id}:`, err)
-        }
-      }
+      }))
     } catch (err: any) {
-      console.error("Batch processing error:", err)
+      console.error("[useChatSession] Batch processing error:", err)
     } finally {
-      isProcessingQueueRef.current = false
       setIsProcessingQueue(false)
       setSessionVersion((v) => v + 1)
     }
-  }, [workspaceId, agent, tempSessionKey, send])
+  }, [workspaceId, agent, send])
 
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.onMessage) return
@@ -1137,7 +1249,8 @@ export function useChatSession(workspaceId: string) {
       if (message.type === "TRIGGER_BATCH_SKILL") {
         const items = message.items || []
         const cmd = message.command
-        triggerBatchSkill(items, cmd).catch(console.error)
+        const options = message.options
+        triggerBatchSkill(items, cmd, options).catch(console.error)
       }
     }
 

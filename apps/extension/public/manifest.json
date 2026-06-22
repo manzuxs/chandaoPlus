@@ -22,7 +22,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/content/index.js", "assets/*"],
+      "resources": ["src/content/index.js", "src/content/floating.js", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ],

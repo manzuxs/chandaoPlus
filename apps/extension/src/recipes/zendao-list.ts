@@ -30,6 +30,7 @@ type CollectZentaoBugInput = {
 type ZentaoBugItem = {
   id: string
   url: string
+  title?: string
 }
 
 type RowSource = {
@@ -90,6 +91,7 @@ function buildBugDetailUrl(baseUrl: string, bugId: string): string {
     parsed.searchParams.set("f", "view")
     parsed.searchParams.set("bugID", bugId)
     parsed.searchParams.delete("id")
+    parsed.searchParams.set("onlybody", "yes") // 避免被禅道重定向
     return parsed.toString()
   } catch {
     return ""
@@ -98,7 +100,11 @@ function buildBugDetailUrl(baseUrl: string, bugId: string): string {
 
 function resolveReferenceUrl(reference: string, baseUrl: string): string {
   try {
-    return new URL(reference, baseUrl).toString()
+    const url = new URL(reference, baseUrl)
+    if (isBugDetailReference(reference) || extractBugIdFromReference(reference)) {
+      url.searchParams.set("onlybody", "yes") // 避免被禅道重定向
+    }
+    return url.toString()
   } catch {
     return reference
   }
@@ -229,6 +235,26 @@ function isValidDtableRowId(value: string | null): value is string {
   return Boolean(value) && value !== "HEADER"
 }
 
+// 提取 Bug 真实标题的辅助函数
+function getRowBugTitle(source: RowSource): string {
+  const elements = source.root 
+    ? [source.root, ...Array.from(source.root.querySelectorAll("a"))] 
+    : source.cells.flatMap(cell => [cell, ...Array.from(cell.querySelectorAll("a"))])
+
+  for (const element of elements) {
+    if (element.tagName.toLowerCase() === "a") {
+      const href = element.getAttribute("href") || ""
+      if (isBugDetailReference(href) || extractBugIdFromReference(href)) {
+        const text = element.textContent?.trim()
+        if (text && text !== source.rowId) {
+          return text
+        }
+      }
+    }
+  }
+  return ""
+}
+
 function collectRowSources(doc: Document): RowSource[] {
   const dtableCells = Array.from(doc.querySelectorAll(".dtable-cell[data-row]"))
   if (dtableCells.length > 0) {
@@ -287,46 +313,79 @@ function getSourceBugUrl(source: RowSource, baseUrl: string): string {
   return getRowBugUrlFromElements(source.cells, source.rowId, baseUrl)
 }
 
-function collectBugRows(input: CollectZentaoBugInput): { checkedLinks: string[]; allLinks: string[]; hasCheckedRows: boolean } {
+function getAllDocuments(rootDoc: Document): Document[] {
+  const docs: Document[] = [rootDoc]
+
+  function traverse(doc: Document) {
+    const iframes = doc.querySelectorAll("iframe")
+    for (const iframe of Array.from(iframes)) {
+      try {
+        if (iframe.contentDocument) {
+          docs.push(iframe.contentDocument)
+          traverse(iframe.contentDocument)
+        }
+      } catch (err) {
+        // 忽略跨域错误
+      }
+    }
+  }
+
+  traverse(rootDoc)
+  return docs
+}
+
+type CollectedBug = {
+  id: string
+  url: string
+  title: string
+}
+
+function collectBugRows(input: CollectZentaoBugInput): { checkedBugs: CollectedBug[]; allBugs: CollectedBug[]; hasCheckedRows: boolean } {
   if (!isZentaoBugListUrl(input.url)) {
-    return { checkedLinks: [], allLinks: [], hasCheckedRows: false }
+    return { checkedBugs: [], allBugs: [], hasCheckedRows: false }
   }
 
   const realBaseUrl = resolveZentaoListBaseUrl(input)
-  const doc = input.liveDocument ?? parseHtmlToDocument(input.html)
+  const rootDoc = input.liveDocument ?? parseHtmlToDocument(input.html)
+  const docs = input.liveDocument ? getAllDocuments(rootDoc) : [rootDoc]
 
-  const rows = collectRowSources(doc)
-  const checkedLinks: string[] = []
-  const allLinks: string[] = []
+  const checkedBugs: CollectedBug[] = []
+  const allBugs: CollectedBug[] = []
   let hasCheckedRows = false
 
-  for (const row of rows) {
-    const absoluteUrl = getSourceBugUrl(row, realBaseUrl)
-    const isChecked = isSourceChecked(row)
-    if (isChecked) hasCheckedRows = true
-    if (!absoluteUrl) continue
+  for (const doc of docs) {
+    const rows = collectRowSources(doc)
+    for (const row of rows) {
+      const absoluteUrl = getSourceBugUrl(row, realBaseUrl)
+      const isChecked = isSourceChecked(row)
+      if (isChecked) hasCheckedRows = true
+      if (!absoluteUrl) continue
 
-    if (isChecked) {
-      checkedLinks.push(absoluteUrl)
+      const id = extractBugIdFromReference(absoluteUrl)
+      const title = getRowBugTitle(row) || (id ? `BUG #${id}` : "")
+      const bugItem: CollectedBug = { id, url: absoluteUrl, title }
+
+      if (isChecked) {
+        checkedBugs.push(bugItem)
+      }
+      allBugs.push(bugItem)
     }
-    allLinks.push(absoluteUrl)
   }
 
-  return { checkedLinks, allLinks, hasCheckedRows }
+  return { checkedBugs, allBugs, hasCheckedRows }
 }
 
 export function collectZentaoBugLinks(input: CollectZentaoBugInput): string[] {
-  const { checkedLinks, allLinks } = collectBugRows(input)
-
-  const links = checkedLinks.length > 0 ? checkedLinks : allLinks
-  return links.slice(0, 20)
+  const { checkedBugs, allBugs } = collectBugRows(input)
+  const bugs = checkedBugs.length > 0 ? checkedBugs : allBugs
+  return bugs.slice(0, 20).map(b => b.url)
 }
 
 export function collectZentaoBugListStatus(input: CollectZentaoBugInput): { items: ZentaoBugItem[]; isAnyChecked: boolean } {
-  const { checkedLinks, allLinks, hasCheckedRows } = collectBugRows(input)
-  const links = (checkedLinks.length > 0 ? checkedLinks : allLinks).slice(0, 20)
-  const items = links
-    .map((link) => ({ id: extractBugIdFromReference(link), url: link }))
+  const { checkedBugs, allBugs, hasCheckedRows } = collectBugRows(input)
+  const bugs = (checkedBugs.length > 0 ? checkedBugs : allBugs).slice(0, 20)
+  const items = bugs
+    .map((b) => ({ id: b.id, url: b.url, title: b.title }))
     .filter((item) => Boolean(item.id))
 
   return { items, isAnyChecked: hasCheckedRows }
