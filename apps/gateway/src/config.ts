@@ -11,6 +11,8 @@ export const CODEX_BIN = process.env.CODEX_BIN || "codex"
 export const CODEX_ARGS = process.env.CODEX_ARGS || "exec --skip-git-repo-check"
 export const OPENCODE_BIN = process.env.OPENCODE_BIN || "opencode"
 export const OPENCODE_ARGS = process.env.OPENCODE_ARGS || "run"
+export const ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || "antigravity"
+export const ANTIGRAVITY_ARGS = process.env.ANTIGRAVITY_ARGS || "--print"
 
 // Default location for workspace profile storage file
 export const WORKSPACE_STORE_PATH =

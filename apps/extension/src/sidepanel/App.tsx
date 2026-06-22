@@ -138,13 +138,13 @@ export function App() {
     setConfirmOpen(true)
   }
   const [command, setCommand] = useState<ChatCommand>("default")
-  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode">(() => {
+  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity">(() => {
     try {
       const saved = localStorage.getItem("chandaoplus_agent_settings")
       if (saved) {
         const settings = JSON.parse(saved)
         const lastAgent = localStorage.getItem("chandaoplus_last_agent")
-        if (lastAgent && settings[lastAgent]) return lastAgent as "claude-code" | "codex" | "opencode"
+        if (lastAgent && settings[lastAgent]) return lastAgent as "claude-code" | "codex" | "opencode" | "antigravity"
       }
     } catch (e) {}
     return "claude-code"
@@ -167,7 +167,8 @@ export function App() {
     return {
       "claude-code": { model: "default", effort: "medium" },
       "codex": { model: "default", effort: "medium" },
-      "opencode": { model: "default", effort: "medium" }
+      "opencode": { model: "default", effort: "medium" },
+      "antigravity": { model: "default", effort: "medium" }
     }
   })
 
@@ -403,14 +404,15 @@ export function App() {
   const [cachedModels, setCachedModels] = useState<Record<string, { id: string; name: string; hasReasoning: boolean }[]>>({
     "claude-code": [],
     "codex": [],
-    "opencode": []
+    "opencode": [],
+    "antigravity": []
   })
   const [modelsLoading, setModelsLoading] = useState(false)
-  const [hoveredAgent, setHoveredAgent] = useState<"claude-code" | "codex" | "opencode" | null>(null)
+  const [hoveredAgent, setHoveredAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity" | null>(null)
 
   const activeFetchAgent = hoveredAgent || agent
 
-  const fetchModelsForAgent = useCallback(async (targetAgent: "claude-code" | "codex" | "opencode", force = false) => {
+  const fetchModelsForAgent = useCallback(async (targetAgent: "claude-code" | "codex" | "opencode" | "antigravity", force = false) => {
     if (cachedModels[targetAgent]?.length > 0 && !force) return
 
     setModelsLoading(true)
@@ -432,7 +434,7 @@ export function App() {
 
   useEffect(() => {
     const prefetch = async () => {
-      const agents = ["claude-code", "codex", "opencode"] as const
+      const agents = ["claude-code", "codex", "opencode", "antigravity"] as const
       await Promise.all(
         agents.map(async (a) => {
           try {
@@ -468,7 +470,7 @@ export function App() {
   const currentSession = sessions.find((s) => s.id === sessionId)
   const currentTitle = currentSession?.title || (sessionId ? "未命名会话" : "新对话")
 
-  const selectAgent = (a: "claude-code" | "codex" | "opencode") => {
+  const selectAgent = (a: "claude-code" | "codex" | "opencode" | "antigravity") => {
     setAgent(a)
     setAgentMenuOpen(false)
     setAgentModelMenuOpen(false)
@@ -788,7 +790,7 @@ export function App() {
                   }}
                 >
                   <span>
-                    {agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : "OpenCode"}
+                    {agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : "Antigravity"}
                   </span>
                   <ChevronDownIcon />
                 </div>
@@ -840,6 +842,22 @@ export function App() {
                         <div className="agent-menu-item-desc">开源高效编程助手</div>
                       </div>
                       {agent === "opencode" && (
+                        <span className="agent-check"><CheckIcon /></span>
+                      )}
+                    </div>
+                    <div
+                      className={`agent-menu-item`}
+                      onClick={() => {
+                        selectAgent("antigravity")
+                      }}
+                      role="option"
+                      aria-selected={agent === "antigravity"}
+                    >
+                      <div>
+                        <div className="agent-menu-item-name">Antigravity</div>
+                        <div className="agent-menu-item-desc">高阶智能代码管家</div>
+                      </div>
+                      {agent === "antigravity" && (
                         <span className="agent-check"><CheckIcon /></span>
                       )}
                     </div>
@@ -956,7 +974,7 @@ export function App() {
                 {permissionMenuOpen && (
                   <div className="permission-menu">
                     <div className="permission-menu-header">
-                      应如何批准 {agent === "claude-code" ? "Claude" : "Codex"} 操作？
+                      应如何批准 {agent === "claude-code" ? "Claude" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : "Antigravity"} 操作？
                     </div>
                     <div
                       className="permission-menu-item"

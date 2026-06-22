@@ -27,7 +27,7 @@ export function FloatingWidget() {
   const [workspaceId, setWorkspaceId] = useState("")
 
   // 表单配置状态
-  const [agentId, setAgentId] = useState<"claude-code" | "codex" | "opencode">("claude-code")
+  const [agentId, setAgentId] = useState<"claude-code" | "codex" | "opencode" | "antigravity">("claude-code")
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [selectedModel, setSelectedModel] = useState<string>("default")
   const [selectedEffort, setSelectedEffort] = useState<string>("medium")
@@ -340,6 +340,7 @@ export function FloatingWidget() {
                   <option value="claude-code">Claude Code</option>
                   <option value="codex">Codex</option>
                   <option value="opencode">OpenCode</option>
+                  <option value="antigravity">Antigravity</option>
                 </select>
               </div>
 

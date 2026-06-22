@@ -318,6 +318,16 @@ export function registerChatRoutes(app: any, deps: any) {
         }
       }
 
+      if (agent === "antigravity") {
+        res.json([
+          { id: "default", name: "默认模型 (Gemini 3.5 Flash)", hasReasoning: true },
+          { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", hasReasoning: true },
+          { id: "gemini-3.5-pro", name: "Gemini 3.5 Pro", hasReasoning: true },
+          { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", hasReasoning: false }
+        ])
+        return
+      }
+
       // 默认情况或 agent === "claude-code"
       res.json([
         { id: "default", name: "默认模型 (Sonnet 4.6)", hasReasoning: true },
