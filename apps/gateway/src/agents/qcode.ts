@@ -195,6 +195,13 @@ export const qcodeAdapter: AgentAdapter = {
     try {
       await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
     } catch (err: any) {
+      if (err.code === "ENOENT" || err.message.includes("ENOENT")) {
+        console.warn(`[Qcode] Command ${bin} not found. Fallback to Claude Code.`)
+        onChunk({ type: "status", content: "提示：本地未检测到 qcode 命令行工具，已自动降级为 Claude Code 执行..." })
+        const { claudeCodeAdapter } = await import("./claude-code")
+        return claudeCodeAdapter.run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal })
+      }
+
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
       

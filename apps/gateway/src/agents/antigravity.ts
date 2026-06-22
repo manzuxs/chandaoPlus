@@ -199,6 +199,10 @@ export const antigravityAdapter: AgentAdapter = {
     try {
       await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
     } catch (err: any) {
+      if (err.code === "ENOENT" || err.message.includes("ENOENT")) {
+        throw new Error(`未检测到本地 agy 命令行工具，请检查 PATH 或 ANTIGRAVITY_BIN 环境变量。`)
+      }
+
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
       
