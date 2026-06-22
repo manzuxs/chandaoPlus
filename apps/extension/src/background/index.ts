@@ -54,7 +54,12 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     /bug-view-\d+/i.test(currentUrl) ||
     (parsedUrl.searchParams.get("m") === "bug" && parsedUrl.searchParams.get("f") === "view" && Boolean(bugId))
 
-  if (!isBugDetail) return null
+  const taskId = parsedUrl.searchParams.get("taskID") || parsedUrl.searchParams.get("taskId") || parsedUrl.searchParams.get("id") || currentUrl.match(/task-view-(\d+)/i)?.[1] || ""
+  const isTaskDetail =
+    /task-view-\d+/i.test(currentUrl) ||
+    (parsedUrl.searchParams.get("m") === "task" && parsedUrl.searchParams.get("f") === "view" && Boolean(taskId))
+
+  if (!isBugDetail && !isTaskDetail) return null
 
   const parseHtml = (html: string) => new DOMParser().parseFromString(html, "text/html")
   const normalizeText = (value: string | null | undefined) => (value || "").replace(/\s+/g, " ").trim()
@@ -178,9 +183,11 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     const root = targetDocument.querySelector("#mainContent") || targetDocument.querySelector("#main") || targetDocument.body
     const titleElement = root.querySelector(".entity-title-text, h1, .main-header h1, .main-title")
     const title = normalizeText(titleElement?.textContent) || document.title
-    const status = normalizeText(root.querySelector(".status, .bug-status")?.textContent)
+    const status = normalizeText(root.querySelector(".status, .bug-status, .task-status")?.textContent)
     const assignedTo = normalizeText(root.querySelector(".assignedTo, .assigned-to")?.textContent)
-    const markdownParts: string[] = [`# BUG #${bugId} ${title}`.trim()]
+    const markdownParts: string[] = isBugDetail
+      ? [`# BUG #${bugId} ${title}`.trim()]
+      : [`# TASK #${taskId} ${title}`.trim()]
 
     const appendSection = (heading: string, body: string) => {
       const text = normalizeBlockText(body)
@@ -200,7 +207,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
 
     if (markdownParts.length === 1) {
       const mainElement = root.querySelector('.detail-sections[zui-key="main"], .detail-main, .main-col, .main-content, .detail-content, .article-content, .content')
-      appendSection("BUG详情", getElementText(mainElement))
+      appendSection(isBugDetail ? "BUG详情" : "任务详情", getElementText(mainElement))
     }
 
     const historyContainer = root.querySelector('[zui-key="historyWrapper"], #history, .history, #actionbox, #historyBox')
@@ -268,11 +275,12 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
     )
 
     const metadata: Record<string, string> = {
-      pageKind: "zentao-bug-detail",
+      pageKind: isBugDetail ? "zentao-bug-detail" : "zentao-task-detail",
       captureSource,
-      bugId,
       title
     }
+    if (isBugDetail) metadata.bugId = bugId
+    if (isTaskDetail) metadata.taskId = taskId
     if (status) metadata.status = status
     if (assignedTo) metadata.assignedTo = assignedTo
 
@@ -301,7 +309,7 @@ async function captureZentaoBugDetailFromLiveDom(): Promise<PageCapture | null> 
       credentials: "include",
       headers: {
         "X-Requested-With": "XMLHttpRequest",
-        "X-ZIN-App": "qa",
+        "X-ZIN-App": isBugDetail ? "qa" : "execution",
         "X-ZIN-Options": JSON.stringify({
           selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
           type: "list"

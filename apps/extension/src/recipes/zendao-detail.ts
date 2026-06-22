@@ -295,3 +295,106 @@ export async function detectZentaoBugDetail(input: { url: string; html: string; 
     metadata: capture.metadata
   }
 }
+
+const TASK_DETAIL_PATH_PATTERN = /task-view-\d+/i
+
+function getTaskIdFromUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const openParam = parsed.searchParams.get("open")
+    if (openParam) {
+      try {
+        const decoded = atob(decodeURIComponent(openParam))
+        const absoluteDecoded = decoded.startsWith("http") ? decoded : new URL(decoded, parsed.origin).toString()
+        return getTaskIdFromUrl(absoluteDecoded)
+      } catch {}
+    }
+    const taskId = parsed.searchParams.get("taskID") || parsed.searchParams.get("taskId") || parsed.searchParams.get("id")
+    if (taskId) return taskId
+  } catch {}
+
+  return url.match(/task-view-(\d+)/i)?.[1] ?? ""
+}
+
+function extractTaskMetadata(document: Document, url: string, fallbackTitle: string): Record<string, string> {
+  const root = pickFirstElement(document, ["#mainContent", "body"]) || document.body
+  const title = normalizeText(
+    pickFirstElement(root, [".entity-title-text", "h1", ".main-header h1", ".main-title"])?.textContent
+  ) || fallbackTitle
+  const status = normalizeText(pickFirstElement(root, [".status", ".task-status"])?.textContent)
+  const assignedTo = normalizeText(pickFirstElement(root, [".assignedTo", ".assigned-to"])?.textContent)
+
+  const metadata: Record<string, string> = {
+    pageKind: "zentao-task-detail",
+    taskId: getTaskIdFromUrl(url),
+    title
+  }
+
+  if (status) metadata.status = status
+  if (assignedTo) metadata.assignedTo = assignedTo
+
+  return metadata
+}
+
+export function isZentaoTaskDetailUrl(url: string): boolean {
+  if (TASK_DETAIL_PATH_PATTERN.test(url)) return true
+
+  try {
+    const parsed = new URL(url)
+    const openParam = parsed.searchParams.get("open")
+    if (openParam) {
+      try {
+        const decoded = atob(decodeURIComponent(openParam))
+        const absoluteDecoded = decoded.startsWith("http") ? decoded : new URL(decoded, parsed.origin).toString()
+        if (isZentaoTaskDetailUrl(absoluteDecoded)) return true
+      } catch {
+        const decodedParam = decodeURIComponent(openParam)
+        if (TASK_DETAIL_PATH_PATTERN.test(decodedParam) || (decodedParam.includes("m=task") && decodedParam.includes("f=view"))) return true
+      }
+    }
+    return parsed.searchParams.get("m") === "task" &&
+      parsed.searchParams.get("f") === "view" &&
+      Boolean(parsed.searchParams.get("taskID") || parsed.searchParams.get("taskId") || parsed.searchParams.get("id"))
+  } catch {
+    return false
+  }
+}
+
+export async function extractZentaoTaskDetailPageCapture(input: {
+  url: string
+  html: string
+  title: string
+}): Promise<PageCapture | null> {
+  if (!isZentaoTaskDetailUrl(input.url)) return null
+
+  const document = await parseDocument(input.html, input.url)
+  const metadata = extractTaskMetadata(document, input.url, input.title)
+  const displayTitle = metadata.taskId ? `TASK #${metadata.taskId}: ${metadata.title}` : (metadata.title || input.title)
+  const focusedHtml = buildFocusedHtml(document)
+  const capture = await extractPageCapture({
+    html: focusedHtml,
+    baseUrl: input.url,
+    title: displayTitle
+  })
+
+  return {
+    ...capture,
+    title: displayTitle,
+    metadata
+  }
+}
+
+export async function detectZentaoTaskDetail(input: { url: string; html: string; title?: string }) {
+  const capture = await extractZentaoTaskDetailPageCapture({
+    url: input.url,
+    html: input.html,
+    title: input.title || ""
+  })
+
+  if (!capture) return null
+
+  return {
+    metadata: capture.metadata
+  }
+}
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { extractZentaoBugDetailPageCapture, isZentaoBugDetailUrl } from "./zendao-detail"
+import { extractZentaoBugDetailPageCapture, isZentaoBugDetailUrl, extractZentaoTaskDetailPageCapture, isZentaoTaskDetailUrl } from "./zendao-detail"
 
 describe("zentao-detail", () => {
   it("recognizes both legacy and query-string bug detail URLs", () => {
@@ -133,5 +133,67 @@ describe("zentao-detail", () => {
     expect(result?.markdown).toContain("2026-06-15 10:00:00")
     expect(result?.markdown).toContain("2026-06-15 10:05:00")
     expect(result?.markdown).toContain("curl -X POST https://api.local")
+  })
+
+  it("recognizes task detail URLs", () => {
+    expect(isZentaoTaskDetailUrl("https://zentao.local/task-view-123.html")).toBe(true)
+    expect(isZentaoTaskDetailUrl("https://zentao.example.com/index.php?m=task&f=view&taskID=7788")).toBe(true)
+    expect(isZentaoTaskDetailUrl("https://zentao.example.com/index.php?m=task&f=view&id=7788")).toBe(true)
+    expect(isZentaoTaskDetailUrl("https://zentao.local/index.php?m=bug&f=view&id=1")).toBe(false)
+
+    // Supports embedded base64 open routing parameter
+    const encodedOpen = encodeURIComponent(btoa("/index.php?m=task&f=view&taskID=7788"))
+    expect(isZentaoTaskDetailUrl(`https://cd.shushangyun.com/index.php?m=index&f=index&open=${encodedOpen}`)).toBe(true)
+  })
+
+  it("extracts focused task detail content and history comments", async () => {
+    const html = `
+      <body>
+        <div id="mainContent">
+          <div class="detail-view col relative gap-2.5" data-id="7788" data-type="task">
+            <div class="detail-header row gap-2 items-center flex-none">
+              <div class="entity-title row items-center gap-2 min-w-0">
+                <span class="label label-id">7788</span>
+                <span class="entity-title-text text-lg text-clip font-bold" title="对服务接口进行性能优化">
+                  对服务接口进行性能优化
+                </span>
+              </div>
+            </div>
+            <div class="detail-body row gap-2 items-start">
+              <div class="detail-main flex-auto col gap-2 min-w-0">
+                <div class="detail-sections canvas shadow rounded px-6 py-4" zui-key="main">
+                  <div class="detail-section" zui-key="描述">
+                    <div class="detail-section-title">描述</div>
+                    <div class="detail-section-content py-1">
+                      <div class="article">
+                        <p>需要将原有接口响应时间降低至200ms以下。</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <aside class="detail-side side-col">
+                <div><span>任务状态</span><span class="status">进行中</span></div>
+                <div><span>指派给</span><span class="assignedTo">王五</span></div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </body>
+    `
+
+    const result = await extractZentaoTaskDetailPageCapture({
+      url: "https://zentao.example.com/index.php?m=task&f=view&taskID=7788",
+      html,
+      title: "TASK #7788"
+    })
+
+    expect(result?.metadata.pageKind).toBe("zentao-task-detail")
+    expect(result?.metadata.taskId).toBe("7788")
+    expect(result?.metadata.title).toBe("对服务接口进行性能优化")
+    expect(result?.metadata.status).toBe("进行中")
+    expect(result?.metadata.assignedTo).toBe("王五")
+    expect(result?.markdown).toContain("性能优化")
+    expect(result?.markdown).toContain("降低至200ms")
   })
 })

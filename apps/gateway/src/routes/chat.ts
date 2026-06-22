@@ -339,11 +339,10 @@ export function registerChatRoutes(app: any, deps: any) {
 
       // 默认情况或 agent === "claude-code"
       res.json([
-        { id: "default", name: "默认模型 (Sonnet 4.6)", hasReasoning: true },
-        { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", hasReasoning: true },
-        { id: "claude-opus-4-8", name: "Claude Opus 4.8", hasReasoning: true },
-        { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", hasReasoning: false },
-        { id: "claude-fable-5", name: "Claude Fable 5", hasReasoning: true }
+        { id: "default", name: "默认模型 (Auto)", hasReasoning: true },
+        { id: "deepseek-v4-flash", name: "deepseek-v4-flash", hasReasoning: false },
+        { id: "deepseek-v4-pro", name: "deepseek-v4-pro", hasReasoning: true },
+        { id: "glm-5.2", name: "glm-5.2", hasReasoning: true }
       ])
     } catch (err: any) {
       res.status(500).json({ error: err.message })

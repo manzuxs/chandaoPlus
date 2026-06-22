@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture, SessionListItem } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
-import { extractZentaoBugDetailPageCapture } from "../../recipes/zendao-detail"
+import { extractZentaoBugDetailPageCapture, extractZentaoTaskDetailPageCapture } from "../../recipes/zendao-detail"
 import { hydrateImageAssets } from "@chandaoplus/extractor"
 
 async function fetchImageBase64(imgUrl: string): Promise<string> {
@@ -32,8 +32,13 @@ type SessionState = {
 }
 
 const getBugId = (page?: PageCapture) => {
-  if (page?.metadata?.pageKind !== "zentao-bug-detail") return undefined
-  return typeof page.metadata.bugId === "string" ? page.metadata.bugId : undefined
+  if (page?.metadata?.pageKind === "zentao-bug-detail") {
+    return typeof page.metadata.bugId === "string" ? `bug-${page.metadata.bugId}` : undefined
+  }
+  if (page?.metadata?.pageKind === "zentao-task-detail") {
+    return typeof page.metadata.taskId === "string" ? `task-${page.metadata.taskId}` : undefined
+  }
+  return undefined
 }
 
 async function readSseStream(response: Response, onChunk: (chunk: any) => void) {
@@ -645,7 +650,12 @@ export function useChatSession(workspaceId: string) {
       let pageCapture = capturedPage
 
       if (hasHistory && lockedBugId && capturedBugId && capturedBugId !== lockedBugId) {
-        const statusText = `当前会话绑定 BUG #${lockedBugId}，但当前页面是 BUG #${capturedBugId}。请新建会话或回到原 BUG 页面。`
+        const getLabel = (idStr: string) => {
+          if (idStr.startsWith("bug-")) return `BUG #${idStr.split("-")[1]}`
+          if (idStr.startsWith("task-")) return `任务 #${idStr.split("-")[1]}`
+          return idStr
+        }
+        const statusText = `当前会话绑定 ${getLabel(lockedBugId)}，但当前页面是 ${getLabel(capturedBugId)}。请新建会话或回到原页面。`
         setSessionStates((prev) => {
           const state = prev[targetKey] || { messages: [], sending: false, statusText: "" }
           const nextMessages = [...state.messages]
@@ -672,7 +682,12 @@ export function useChatSession(workspaceId: string) {
 
       if (lockedBugId && latestState?.lockedPage && !capturedBugId) {
         pageCapture = latestState.lockedPage
-        finalStatusText = `使用已锁定 BUG #${lockedBugId} 上下文`
+        const getLabel = (idStr: string) => {
+          if (idStr.startsWith("bug-")) return `BUG #${idStr.split("-")[1]}`
+          if (idStr.startsWith("task-")) return `任务 #${idStr.split("-")[1]}`
+          return idStr
+        }
+        finalStatusText = `使用已锁定 ${getLabel(lockedBugId)} 上下文`
       }
 
       setSessionStates((prev) => {
@@ -1134,6 +1149,10 @@ export function useChatSession(workspaceId: string) {
                 url: item.url,
                 html,
                 title: item.title || `BUG #${item.id}`
+              }) || await extractZentaoTaskDetailPageCapture({
+                url: item.url,
+                html,
+                title: item.title || `TASK #${item.id}`
               })
 
               // 检查内容是否太少，太少的话尝试用 Zin 接口拉取
@@ -1147,7 +1166,7 @@ export function useChatSession(workspaceId: string) {
                     credentials: "include",
                     headers: {
                       "X-Requested-With": "XMLHttpRequest",
-                      "X-ZIN-App": "qa",
+                      "X-ZIN-App": item.url.includes("m=bug") || item.url.includes("bug-view") ? "qa" : "execution",
                       "X-ZIN-Options": JSON.stringify({
                         selector: ["#configJS", "title>*", "body>*", "zinDebug()"],
                         type: "list"
@@ -1176,6 +1195,10 @@ export function useChatSession(workspaceId: string) {
                         url: item.url,
                         html: parsedHtml,
                         title: item.title || `BUG #${item.id}`
+                      }) || await extractZentaoTaskDetailPageCapture({
+                        url: item.url,
+                        html: parsedHtml,
+                        title: item.title || `TASK #${item.id}`
                       })
                       if (zinCapture && zinCapture.markdown && zinCapture.markdown.length >= 200) {
                         zentaoCapture = zinCapture
