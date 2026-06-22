@@ -6,6 +6,7 @@ import { SkillManager } from "./components/SkillManager"
 import { useChatSession } from "./hooks/useChatSession"
 import { captureActiveTabPage, formatPageCapturePreview } from "../lib/page-capture"
 import { isZentaoBugListUrl } from "../recipes/zendao-list"
+import { getSettings, watchSettings } from "../lib/shared-settings"
 
 // SVG Icons
 const CopyIcon = () => (
@@ -180,9 +181,30 @@ export function App() {
         }
       }
       localStorage.setItem("chandaoplus_agent_settings", JSON.stringify(next))
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        chrome.storage.local.set({ "chandaoplus_agent_settings": next })
+      }
       return next
     })
   }
+
+  useEffect(() => {
+    getSettings().then((s) => {
+      if (s.lastAgent) setAgent(s.lastAgent)
+      if (s.agentSettings && Object.keys(s.agentSettings).length > 0) {
+        setAgentSettings(s.agentSettings as any)
+      }
+    })
+
+    const unwatch = watchSettings((s) => {
+      if (s.lastAgent) setAgent(s.lastAgent)
+      if (s.agentSettings) {
+        setAgentSettings(s.agentSettings as any)
+      }
+    })
+
+    return unwatch
+  }, [])
   const [showSkillManager, setShowSkillManager] = useState(false)
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false)
   const [copiedStatus, setCopiedStatus] = useState(false)
@@ -365,6 +387,9 @@ export function App() {
     if (sessionId && sessionAgent && sessionAgent !== agent) {
       setAgent(sessionAgent)
       localStorage.setItem("chandaoplus_last_agent", sessionAgent)
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        chrome.storage.local.set({ "chandaoplus_last_agent": sessionAgent })
+      }
     } else if (!sessionId) {
       const saved = agentSettings[agent] || { model: "default", effort: "medium" }
       setSessionConfig({
@@ -450,6 +475,9 @@ export function App() {
     setPermissionMenuOpen(false)
     setModelMenuOpen(false)
     localStorage.setItem("chandaoplus_last_agent", a)
+    if (typeof chrome !== "undefined" && chrome.storage?.local) {
+      chrome.storage.local.set({ "chandaoplus_last_agent": a })
+    }
 
     const saved = agentSettings[a] || { model: "default", effort: "medium" }
     setSessionConfig({

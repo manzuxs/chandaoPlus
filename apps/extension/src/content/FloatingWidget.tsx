@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react"
 import type { Skill } from "@chandaoplus/shared"
 import { collectZentaoBugLinks, collectZentaoBugListStatus } from "../recipes/zendao-list"
 import { extractZentaoBugDetailPageCapture } from "../recipes/zendao-detail"
-import { getSettings } from "../lib/shared-settings"
+import { getSettings, watchSettings, updateAgentSettingsInStorage, setLastAgentInStorage } from "../lib/shared-settings"
 
 const BugIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -36,6 +36,19 @@ export function FloatingWidget() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  // 0. 监听全局 storage 更改实现双向同步
+  useEffect(() => {
+    const unwatch = watchSettings((s) => {
+      const savedAgent = s.lastAgent || "claude-code"
+      setAgentId(savedAgent)
+      const agentCfg = s.agentSettings[savedAgent] || {}
+      setSelectedModel(agentCfg.model || "default")
+      setSelectedEffort(agentCfg.effort || "medium")
+      setSelectedPermission(agentCfg.permissionMode || "full")
+    })
+    return unwatch
+  }, [])
 
   // 1. 加载技能列表与工作空间列表
   useEffect(() => {
@@ -107,6 +120,18 @@ export function FloatingWidget() {
       chrome.storage.local.set({ lastWorkspaceId: id })
     }
   }
+
+  // 4.5 处理渠道切换并写入 storage
+  const handleAgentChange = async (val: string) => {
+    setAgentId(val as any)
+    await setLastAgentInStorage(val)
+    const s = await getSettings()
+    const agentCfg = s.agentSettings[val] || {}
+    setSelectedModel(agentCfg.model || "default")
+    setSelectedEffort(agentCfg.effort || "medium")
+    setSelectedPermission(agentCfg.permissionMode || "full")
+  }
+
 
   // 5. 提交任务
   const handleSubmit = useCallback(async () => {
@@ -311,7 +336,7 @@ export function FloatingWidget() {
 
               <div className="fw-field">
                 <label>执行渠道</label>
-                <select value={agentId} onChange={(e) => setAgentId(e.target.value as any)}>
+                <select value={agentId} onChange={(e) => handleAgentChange(e.target.value)}>
                   <option value="claude-code">Claude Code</option>
                   <option value="codex">Codex</option>
                   <option value="opencode">OpenCode</option>
@@ -320,7 +345,11 @@ export function FloatingWidget() {
 
               <div className="fw-field">
                 <label>大语言模型</label>
-                <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+                <select value={selectedModel} onChange={async (e) => {
+                  const val = e.target.value
+                  setSelectedModel(val)
+                  await updateAgentSettingsInStorage(agentId, { model: val })
+                }}>
                   <option value="default">默认模型</option>
                   {models.filter(m => m.id !== "default").map((m) => (
                     <option key={m.id} value={m.id}>{m.name.split("/").pop()}</option>
@@ -330,7 +359,11 @@ export function FloatingWidget() {
 
               <div className="fw-field">
                 <label>权限模式</label>
-                <select value={selectedPermission} onChange={(e) => setSelectedPermission(e.target.value)}>
+                <select value={selectedPermission} onChange={async (e) => {
+                  const val = e.target.value
+                  setSelectedPermission(val)
+                  await updateAgentSettingsInStorage(agentId, { permissionMode: val })
+                }}>
                   <option value="full">完全访问</option>
                   <option value="semi">半自动 (询问)</option>
                 </select>
@@ -338,7 +371,11 @@ export function FloatingWidget() {
 
               <div className="fw-field">
                 <label>推理级别</label>
-                <select value={selectedEffort} onChange={(e) => setSelectedEffort(e.target.value)}>
+                <select value={selectedEffort} onChange={async (e) => {
+                  const val = e.target.value
+                  setSelectedEffort(val)
+                  await updateAgentSettingsInStorage(agentId, { effort: val })
+                }}>
                   <option value="low">低</option>
                   <option value="medium">中</option>
                   <option value="high">高</option>

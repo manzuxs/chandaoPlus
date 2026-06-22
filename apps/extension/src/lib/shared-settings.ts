@@ -20,21 +20,22 @@ export async function getSettings(): Promise<SharedSettings> {
   }
 
   const result = await chrome.storage.local.get([STORAGE_KEYS.workspace, STORAGE_KEYS.agent, STORAGE_KEYS.settings])
+  const safeResult = result || {}
   let agentSettings: Record<string, any> = {}
   try {
-    const raw = result[STORAGE_KEYS.settings]
+    const raw = safeResult[STORAGE_KEYS.settings]
     agentSettings = typeof raw === "string" ? JSON.parse(raw) : (raw || {})
   } catch {}
 
   return {
-    lastWorkspaceId: result[STORAGE_KEYS.workspace] || "",
-    lastAgent: result[STORAGE_KEYS.agent] || "claude-code",
+    lastWorkspaceId: safeResult[STORAGE_KEYS.workspace] || "",
+    lastAgent: safeResult[STORAGE_KEYS.agent] || "claude-code",
     agentSettings
   }
 }
 
 export function watchSettings(callback: (settings: SharedSettings) => void): () => void {
-  if (!hasStorage()) return () => {}
+  if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return () => {}
 
   const listener = () => {
     getSettings().then(callback).catch(() => {})
@@ -43,3 +44,27 @@ export function watchSettings(callback: (settings: SharedSettings) => void): () 
   chrome.storage.onChanged.addListener(listener)
   return () => chrome.storage.onChanged.removeListener(listener)
 }
+
+export async function updateAgentSettingsInStorage(agent: string, config: { model?: string; effort?: string; permissionMode?: string }) {
+  if (!hasStorage()) return
+  const result = await chrome.storage.local.get(STORAGE_KEYS.settings)
+  const safeResult = result || {}
+  let agentSettings: Record<string, any> = {}
+  try {
+    const raw = safeResult[STORAGE_KEYS.settings]
+    agentSettings = typeof raw === "string" ? JSON.parse(raw) : (raw || {})
+  } catch {}
+
+  agentSettings[agent] = {
+    ...(agentSettings[agent] || {}),
+    ...config
+  }
+
+  await chrome.storage.local.set({ [STORAGE_KEYS.settings]: agentSettings })
+}
+
+export async function setLastAgentInStorage(agent: string) {
+  if (!hasStorage()) return
+  await chrome.storage.local.set({ [STORAGE_KEYS.agent]: agent })
+}
+
