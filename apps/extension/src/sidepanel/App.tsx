@@ -728,6 +728,7 @@ export function App() {
                     input
                   })
                   setInput("")
+                  setCommand("default")
                 }
               }
             }}
@@ -1072,6 +1073,7 @@ export function App() {
                       input
                     })
                     setInput("")
+                    setCommand("default")
                   }}
                 >
                   <SendIcon />

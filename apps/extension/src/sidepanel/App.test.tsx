@@ -844,7 +844,9 @@ describe("App", () => {
       images: [],
       metadata: {}
     }
-    // 第二次：直接发送。此时技能依旧选中，因为当前页面没有 bugId，所以它会自动回落到已锁定的 BUG 101 上下文
+    // 第二次：再次选择技能后发送。因为当前页面没有 bugId，所以它会自动回落到已锁定的 BUG 101 上下文
+    fireEvent.change(textarea, { target: { value: "/" } })
+    fireEvent.click(await screen.findByText("评估工期"))
     fireEvent.change(textarea, { target: { value: "离开 BUG 后继续问" } })
     fireEvent.click(sendBtn)
 
@@ -937,7 +939,9 @@ describe("App", () => {
       metadata: { pageKind: "zentao-bug-detail", bugId: "202" }
     }
 
-    // 第二次：直接发送。此时技能依旧选中，会自动触发对当前 BUG 202 的页面捕获
+    // 第二次：再次选择技能后发送，会自动触发对当前 BUG 202 的页面捕获
+    fireEvent.change(textarea, { target: { value: "/" } })
+    fireEvent.click(await screen.findByText("评估工期"))
     fireEvent.change(textarea, { target: { value: "错误 BUG 上继续问" } })
     fireEvent.click(sendBtn)
 
