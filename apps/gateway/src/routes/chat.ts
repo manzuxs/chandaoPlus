@@ -318,6 +318,15 @@ export function registerChatRoutes(app: any, deps: any) {
         }
       }
 
+      if (agent === "qcode") {
+        res.json([
+          { id: "default", name: "默认模型 (Qcode Standard)", hasReasoning: true },
+          { id: "qcode-standard", name: "Qcode Standard", hasReasoning: false },
+          { id: "qcode-pro", name: "Qcode Pro", hasReasoning: true }
+        ])
+        return
+      }
+
       if (agent === "antigravity") {
         res.json([
           { id: "default", name: "默认模型 (Gemini 3.5 Flash)", hasReasoning: true },

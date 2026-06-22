@@ -14,7 +14,7 @@ export interface AgentRunOptions {
 }
 
 export interface AgentAdapter {
-  id: "claude-code" | "codex" | "opencode" | "antigravity"
+  id: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
   run(options: AgentRunOptions): Promise<void>
 }
 

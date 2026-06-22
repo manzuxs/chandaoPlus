@@ -13,6 +13,8 @@ export const OPENCODE_BIN = process.env.OPENCODE_BIN || "opencode"
 export const OPENCODE_ARGS = process.env.OPENCODE_ARGS || "run"
 export const ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || "antigravity"
 export const ANTIGRAVITY_ARGS = process.env.ANTIGRAVITY_ARGS || "--print"
+export const QCODE_BIN = process.env.QCODE_BIN || "qcode"
+export const QCODE_ARGS = process.env.QCODE_ARGS || "--print"
 
 // Default location for workspace profile storage file
 export const WORKSPACE_STORE_PATH =

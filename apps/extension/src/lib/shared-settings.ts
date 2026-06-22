@@ -1,6 +1,6 @@
 export interface SharedSettings {
   lastWorkspaceId: string
-  lastAgent: "claude-code" | "codex" | "opencode" | "antigravity"
+  lastAgent: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
   agentSettings: Record<string, { model?: string; effort?: string; permissionMode?: string }>
 }
 

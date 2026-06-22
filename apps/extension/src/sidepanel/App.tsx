@@ -138,15 +138,15 @@ export function App() {
     setConfirmOpen(true)
   }
   const [command, setCommand] = useState<ChatCommand>("default")
-  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity">(() => {
+  const [agent, setAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity" | "qcode">(() => {
     try {
       const saved = localStorage.getItem("chandaoplus_agent_settings")
       if (saved) {
         const settings = JSON.parse(saved)
         const lastAgent = localStorage.getItem("chandaoplus_last_agent")
-        if (lastAgent && settings[lastAgent]) return lastAgent as "claude-code" | "codex" | "opencode" | "antigravity"
+        if (lastAgent && settings[lastAgent]) return lastAgent as "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
       }
-    } catch (e) {}
+    } catch (e) { }
     return "claude-code"
   })
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
@@ -168,7 +168,8 @@ export function App() {
       "claude-code": { model: "default", effort: "medium" },
       "codex": { model: "default", effort: "medium" },
       "opencode": { model: "default", effort: "medium" },
-      "antigravity": { model: "default", effort: "medium" }
+      "antigravity": { model: "default", effort: "medium" },
+      "qcode": { model: "default", effort: "medium" }
     }
   })
 
@@ -405,14 +406,15 @@ export function App() {
     "claude-code": [],
     "codex": [],
     "opencode": [],
-    "antigravity": []
+    "antigravity": [],
+    "qcode": []
   })
   const [modelsLoading, setModelsLoading] = useState(false)
-  const [hoveredAgent, setHoveredAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity" | null>(null)
+  const [hoveredAgent, setHoveredAgent] = useState<"claude-code" | "codex" | "opencode" | "antigravity" | "qcode" | null>(null)
 
   const activeFetchAgent = hoveredAgent || agent
 
-  const fetchModelsForAgent = useCallback(async (targetAgent: "claude-code" | "codex" | "opencode" | "antigravity", force = false) => {
+  const fetchModelsForAgent = useCallback(async (targetAgent: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode", force = false) => {
     if (cachedModels[targetAgent]?.length > 0 && !force) return
 
     setModelsLoading(true)
@@ -434,7 +436,7 @@ export function App() {
 
   useEffect(() => {
     const prefetch = async () => {
-      const agents = ["claude-code", "codex", "opencode", "antigravity"] as const
+      const agents = ["claude-code", "codex", "opencode", "antigravity", "qcode"] as const
       await Promise.all(
         agents.map(async (a) => {
           try {
@@ -470,7 +472,7 @@ export function App() {
   const currentSession = sessions.find((s) => s.id === sessionId)
   const currentTitle = currentSession?.title || (sessionId ? "未命名会话" : "新对话")
 
-  const selectAgent = (a: "claude-code" | "codex" | "opencode" | "antigravity") => {
+  const selectAgent = (a: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode") => {
     setAgent(a)
     setAgentMenuOpen(false)
     setAgentModelMenuOpen(false)
@@ -527,7 +529,7 @@ export function App() {
       .then((data) => {
         if (Array.isArray(data)) setSessions(data)
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [workspaceId, sessionVersion])
 
   const handleSwitchSession = (newSessionId: string) => {
@@ -790,7 +792,7 @@ export function App() {
                   }}
                 >
                   <span>
-                    {agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : "Antigravity"}
+                    {agent === "claude-code" ? "Claude Code" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : agent === "antigravity" ? "Antigravity" : "Qcode"}
                   </span>
                   <ChevronDownIcon />
                 </div>
@@ -858,6 +860,22 @@ export function App() {
                         <div className="agent-menu-item-desc">高阶智能代码管家</div>
                       </div>
                       {agent === "antigravity" && (
+                        <span className="agent-check"><CheckIcon /></span>
+                      )}
+                    </div>
+                    <div
+                      className={`agent-menu-item`}
+                      onClick={() => {
+                        selectAgent("qcode")
+                      }}
+                      role="option"
+                      aria-selected={agent === "qcode"}
+                    >
+                      <div>
+                        <div className="agent-menu-item-name">Qcode</div>
+                        <div className="agent-menu-item-desc">阿里高效研发管家</div>
+                      </div>
+                      {agent === "qcode" && (
                         <span className="agent-check"><CheckIcon /></span>
                       )}
                     </div>
@@ -974,7 +992,7 @@ export function App() {
                 {permissionMenuOpen && (
                   <div className="permission-menu">
                     <div className="permission-menu-header">
-                      应如何批准 {agent === "claude-code" ? "Claude" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : "Antigravity"} 操作？
+                      应如何批准 {agent === "claude-code" ? "Claude" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : agent === "antigravity" ? "Antigravity" : "Qcode"} 操作？
                     </div>
                     <div
                       className="permission-menu-item"

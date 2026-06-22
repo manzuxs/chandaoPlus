@@ -23,7 +23,7 @@ type SessionState = {
   messages: ChatMessage[]
   sending: boolean
   statusText: string
-  agent?: "claude-code" | "codex" | "opencode" | "antigravity"
+  agent?: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
   model?: string
   effort?: "low" | "medium" | "high" | "xhigh" | "max"
   permissionMode?: "ask" | "auto" | "full" | "custom"
@@ -497,7 +497,7 @@ export function useChatSession(workspaceId: string) {
   }, [workspaceId, tempSessionKey])
 
   const setSessionConfig = useCallback((config: {
-    agent?: "claude-code" | "codex" | "opencode" | "antigravity"
+    agent?: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
     model?: string
     effort?: "low" | "medium" | "high" | "xhigh" | "max"
     permissionMode?: "ask" | "auto" | "full" | "custom"
@@ -579,7 +579,7 @@ export function useChatSession(workspaceId: string) {
 
   const send = async (params: {
     workspaceId: string
-    agent: "claude-code" | "codex" | "opencode" | "antigravity"
+    agent: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
     command: ChatCommand
     input: string
     customPage?: PageCapture
@@ -1022,7 +1022,7 @@ export function useChatSession(workspaceId: string) {
     items: { id: string; url: string; title?: string; customPage?: PageCapture }[],
     cmd: string,
     options?: {
-      agent?: "claude-code" | "codex" | "opencode" | "antigravity"
+      agent?: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
       model?: string
       effort?: any
       permissionMode?: any
