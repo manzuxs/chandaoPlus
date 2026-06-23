@@ -1,5 +1,5 @@
 import request from "supertest"
-import { describe, it, expect, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import express from "express"
 import path from "node:path"
 import os from "node:os"
@@ -11,13 +11,15 @@ describe("Session Routes", () => {
   let app: express.Express
   let store: SessionStore
   let tmpDir: string
+  let chatTaskStoreMock: Map<string, any>
 
   beforeEach(async () => {
     tmpDir = mkdtempSync(path.join(os.tmpdir(), "session-routes-test-"))
     store = new SessionStore(path.join(tmpDir, "sessions.json"))
     app = express()
     app.use(express.json())
-    registerSessionRoutes(app, { sessionStore: store })
+    chatTaskStoreMock = new Map()
+    registerSessionRoutes(app, { sessionStore: store, chatTaskStore: chatTaskStoreMock })
   })
 
   afterEach(() => {
@@ -86,5 +88,24 @@ describe("Session Routes", () => {
   it("DELETE /api/sessions/:id returns 404 for missing session", async () => {
     const res = await request(app).delete("/api/sessions/non-existent")
     expect(res.status).toBe(404)
+  })
+
+  it("DELETE /api/sessions/:id aborts and deletes associated running task", async () => {
+    const session = await store.create("ws-1")
+    const abortSpy = vi.fn()
+    const mockTask = {
+      id: "task-1",
+      sessionId: session.id,
+      workspaceId: "ws-1",
+      abortController: { abort: abortSpy },
+      stopRequested: false
+    }
+    chatTaskStoreMock.set(mockTask.id, mockTask)
+
+    const res = await request(app).delete(`/api/sessions/${session.id}`)
+    expect(res.status).toBe(204)
+    expect(mockTask.stopRequested).toBe(true)
+    expect(abortSpy).toHaveBeenCalled()
+    expect(chatTaskStoreMock.has("task-1")).toBe(false)
   })
 })

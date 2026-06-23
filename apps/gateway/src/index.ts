@@ -8,12 +8,14 @@ import { agentRegistry } from "./agents"
 const workspaceStore = new WorkspaceStore(WORKSPACE_STORE_PATH)
 const skillStore = new SkillStore(SKILL_STORE_PATH)
 const sessionStore = new SessionStore()
+const chatTaskStore = new Map()
 
 const app = createServer({
   workspaceStore,
   skillStore,
   sessionStore,
-  agentRegistry
+  agentRegistry,
+  chatTaskStore
 })
 
 app.listen(PORT, "127.0.0.1", () => {

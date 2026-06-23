@@ -47,7 +47,17 @@ export function registerSessionRoutes(app: any, deps: any) {
 
   router.delete("/:id", async (req, res) => {
     try {
-      await deps.sessionStore.delete(req.params.id)
+      const sessionId = req.params.id
+      if (deps.chatTaskStore) {
+        for (const task of deps.chatTaskStore.values()) {
+          if (task.sessionId === sessionId) {
+            task.stopRequested = true
+            task.abortController?.abort()
+            deps.chatTaskStore.delete(task.id)
+          }
+        }
+      }
+      await deps.sessionStore.delete(sessionId)
       res.status(204).end()
     } catch (err: any) {
       if (err.message?.includes("not found")) {
