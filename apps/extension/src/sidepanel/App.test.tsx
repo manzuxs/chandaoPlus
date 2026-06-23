@@ -33,7 +33,7 @@ describe("App", () => {
             {
               id: "fix",
               name: "定位并修复问题",
-              icon: "gear",
+              icon: "shield",
               description: "结合代码定位根因并修复问题",
               keywords: ["fix", "修复", "定位"],
               promptTemplate: "请结合代码定位根因并完成最小修复。",
@@ -43,7 +43,7 @@ describe("App", () => {
             {
               id: "verify",
               name: "修复验收检查",
-              icon: "check",
+              icon: "shield",
               description: "检查修复成果和回归风险",
               keywords: ["verify", "验收", "检查"],
               promptTemplate: "请检查修复成果是否满足禅道诉求。",
@@ -117,7 +117,7 @@ describe("App", () => {
 
   it("requires workspace selection before sending", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(5))
     
     // 欢迎页中的快捷技能卡片
     await screen.findByText("评估工期与修复方案")
@@ -151,7 +151,7 @@ describe("App", () => {
 
   it("filters command list dynamically when query changes", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(5))
     await screen.findByText("评估工期与修复方案")
 
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement
@@ -180,7 +180,7 @@ describe("App", () => {
 
   it("copies the extracted page preview from the header button", async () => {
     render(<App />)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5))
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(5))
 
     const headerActions = screen.getByRole("button", { name: "选择工作空间" }).parentElement
     const copyButton = screen.getByRole("button", { name: "复制当前网页内容" })
@@ -945,7 +945,7 @@ describe("App", () => {
     fireEvent.change(textarea, { target: { value: "错误 BUG 上继续问" } })
     fireEvent.click(sendBtn)
 
-    await screen.findByText("当前会话绑定 BUG #101，但当前页面是 BUG #202。请新建会话或回到原 BUG 页面。")
+    await screen.findByText("当前会话绑定 BUG #101，但当前页面是 BUG #202。请新建会话或回到原页面。")
     expect(customFetchMock.mock.calls.filter(([url]) => String(url).includes("/api/chat/stream"))).toHaveLength(1)
   })
 

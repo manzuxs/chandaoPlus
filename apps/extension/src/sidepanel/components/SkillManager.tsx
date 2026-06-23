@@ -28,15 +28,24 @@ const BoltIcon = () => (
   </svg>
 )
 
+const ShieldIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
 const renderSkillIcon = (skill: Skill) => {
   const iconType = skill.icon || ""
   if (iconType === "clock" || skill.id === "estimate") {
     return <ClockIcon />
   }
-  if (iconType === "gear" || skill.id === "fix") {
+  if (iconType === "shield" || skill.id === "fix" || skill.id === "verify") {
+    return <ShieldIcon />
+  }
+  if (iconType === "gear") {
     return <GearIcon />
   }
-  if (iconType === "check" || skill.id === "verify") {
+  if (iconType === "check") {
     return <CheckIcon />
   }
   return <BoltIcon />
@@ -296,6 +305,7 @@ export function SkillManager({ skills, onSave, onDelete, onClose }: SkillManager
                 <option value="clock">时钟 (Clock)</option>
                 <option value="gear">齿轮 (Gear)</option>
                 <option value="check">勾勾 (Check)</option>
+                <option value="shield">盾牌 (Shield)</option>
                 <option value="bolt">闪电 (Bolt)</option>
               </select>
               <input
