@@ -175,7 +175,7 @@ function streamProcessOpencode(
 export const opencodeAdapter: AgentAdapter = {
   id: "opencode",
   async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
-    const prompt = buildPrompt({
+    const prompt = await buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
       bundleDir,

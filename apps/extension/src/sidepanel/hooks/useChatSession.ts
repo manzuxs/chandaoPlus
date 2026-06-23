@@ -329,6 +329,7 @@ export function useChatSession(workspaceId: string) {
                     model: prev[stored]?.model || session.model || "default",
                     effort: prev[stored]?.effort || session.effort || "medium",
                     permissionMode: prev[stored]?.permissionMode || session.permissionMode || "full",
+                    lockedPage: session.lockedPage || prev[stored]?.lockedPage,
                     runningTaskId: session.runningTaskId
                   }
                 }))
@@ -559,6 +560,7 @@ export function useChatSession(workspaceId: string) {
             model: prev[id]?.model || session.model || "default",
             effort: prev[id]?.effort || session.effort || "medium",
             permissionMode: prev[id]?.permissionMode || session.permissionMode || "full",
+            lockedPage: session.lockedPage || prev[id]?.lockedPage,
             runningTaskId: session.runningTaskId
           }
         }))

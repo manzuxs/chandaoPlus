@@ -21,8 +21,8 @@ const estimateSkill = {
 }
 
 describe("buildPrompt", () => {
-  it("includes the structured estimate template", () => {
-    const prompt = buildPrompt({
+  it("includes the structured estimate template", async () => {
+    const prompt = await buildPrompt({
       command: "estimate",
       workspaceRoot: "/workspace/project",
       bundleDir: "/tmp/bundle",
@@ -38,8 +38,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("## 验证清单")
   })
 
-  it("points agents to persisted conversation history instead of inlining messages", () => {
-    const prompt = buildPrompt({
+  it("points agents to persisted conversation history instead of inlining messages", async () => {
+    const prompt = await buildPrompt({
       command: "default",
       workspaceRoot: "/ws",
       bundleDir: "/tmp/bundle",
@@ -58,8 +58,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("<user_request>如何修复？</user_request>")
   })
 
-  it("skips history section when only one message", () => {
-    const prompt = buildPrompt({
+  it("skips history section when only one message", async () => {
+    const prompt = await buildPrompt({
       command: "default",
       workspaceRoot: "/ws",
       bundleDir: "/tmp/bundle",
@@ -70,8 +70,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("<user_request>hello</user_request>")
   })
 
-  it("includes XML context when page object is provided", () => {
-    const prompt = buildPrompt({
+  it("includes XML context when page object is provided", async () => {
+    const prompt = await buildPrompt({
       command: "default",
       workspaceRoot: "/ws",
       bundleDir: "/tmp/bundle",
@@ -107,7 +107,7 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("# 详情")
   })
 
-  it("includes must_read_files section when requiredFiles are provided", () => {
+  it("includes must_read_files section when requiredFiles are provided", async () => {
     const fs = require("node:fs")
     const path = require("node:path")
     
@@ -121,7 +121,7 @@ describe("buildPrompt", () => {
     fs.writeFileSync(ruleFileAbs, "Code must be neat.", "utf8")
 
     try {
-      const prompt = buildPrompt({
+      const prompt = await buildPrompt({
         command: "default",
         workspaceRoot: wsRoot,
         bundleDir: "/tmp/bundle",
@@ -141,8 +141,8 @@ describe("buildPrompt", () => {
     }
   })
 
-  it("omits page_context section when a dummy page object is provided", () => {
-    const prompt = buildPrompt({
+  it("omits page_context section when a dummy page object is provided", async () => {
+    const prompt = await buildPrompt({
       command: "default",
       workspaceRoot: "/ws",
       bundleDir: "/tmp/bundle",
@@ -162,8 +162,8 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("/tmp/bundle/conversation.md")
   })
 
-  it("includes workspace_guidelines and trailing anti-forget warnings", () => {
-    const prompt = buildPrompt({
+  it("includes workspace_guidelines and trailing anti-forget warnings", async () => {
+    const prompt = await buildPrompt({
       command: "default",
       workspaceRoot: "/ws/some_project",
       bundleDir: "/tmp/bundle",

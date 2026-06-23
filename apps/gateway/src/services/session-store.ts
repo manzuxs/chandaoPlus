@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { ChatMessage, Session, SessionListItem } from "@chandaoplus/shared";
+import type { ChatMessage, Session, SessionListItem, AgentKind, PageCapture } from "@chandaoplus/shared";
 
 interface SessionRecord {
   id: string;
@@ -15,10 +15,11 @@ interface SessionRecord {
   runningStatus?: "running" | "stopping";
   codexThreadId?: string;
   opencodeSessionId?: string;
-  agent?: "claude-code" | "codex" | "opencode";
+  agent?: AgentKind;
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   permissionMode?: "ask" | "auto" | "full" | "custom";
+  lockedPage?: PageCapture;
 }
 
 export class SessionStore {
@@ -53,7 +54,7 @@ export class SessionStore {
     workspaceId: string,
     title?: string,
     config?: {
-      agent?: "claude-code" | "codex" | "opencode";
+      agent?: AgentKind;
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
@@ -159,7 +160,9 @@ export class SessionStore {
       const record = records.find((r) => r.id === sessionId);
       if (!record) throw new Error(`Session ${sessionId} not found`);
       if (!record.contextBundleDirs) record.contextBundleDirs = [];
-      record.contextBundleDirs.push(bundleDir);
+      if (!record.contextBundleDirs.includes(bundleDir)) {
+        record.contextBundleDirs.push(bundleDir);
+      }
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
     });
@@ -168,10 +171,11 @@ export class SessionStore {
   async updateConfig(
     sessionId: string,
     config: {
-      agent?: "claude-code" | "codex" | "opencode";
+      agent?: AgentKind;
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
+      lockedPage?: PageCapture;
     }
   ): Promise<void> {
     return this.withLock(async () => {
@@ -182,6 +186,7 @@ export class SessionStore {
       if (config.model !== undefined) record.model = config.model;
       if (config.effort !== undefined) record.effort = config.effort;
       if (config.permissionMode !== undefined) record.permissionMode = config.permissionMode;
+      if (config.lockedPage !== undefined) record.lockedPage = config.lockedPage;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);
     });

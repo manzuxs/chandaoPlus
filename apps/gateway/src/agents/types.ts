@@ -1,4 +1,4 @@
-import fs from "node:fs"
+import { stat, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import type { ChatMessage, ChatRequest, ChatStreamChunk, PageCapture, Skill, WorkspaceProfile } from "@chandaoplus/shared"
 import { escapeXml, formatPageCaptureToXml } from "@chandaoplus/shared"
@@ -18,7 +18,7 @@ export interface AgentAdapter {
   run(options: AgentRunOptions): Promise<void>
 }
 
-export function buildPrompt(params: {
+export async function buildPrompt(params: {
   command: string
   workspaceRoot: string
   bundleDir: string
@@ -28,7 +28,7 @@ export function buildPrompt(params: {
   skill?: Skill
   page?: PageCapture
   requiredFiles?: string[]
-}): string {
+}): Promise<string> {
   const { command, workspaceRoot, bundleDir, messages, pageTitle = "", pageUrl = "", skill, page, requiredFiles } = params
 
   // 1. Session Context
@@ -42,22 +42,24 @@ export function buildPrompt(params: {
   // 1.5 Required Files (Must-read Files)
   let requiredFilesXml = ""
   if (requiredFiles && requiredFiles.length > 0) {
-    const fileBlocks: string[] = []
-    for (const relPath of requiredFiles) {
-      const absPath = join(workspaceRoot, relPath)
-      try {
-        if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
-          const content = fs.readFileSync(absPath, "utf8")
-          fileBlocks.push(`  <file path="${escapeXml(relPath)}">
+    const fileBlocks = await Promise.all(
+      requiredFiles.map(async (relPath) => {
+        const absPath = join(workspaceRoot, relPath)
+        try {
+          const stats = await stat(absPath)
+          if (stats.isFile()) {
+            const content = await readFile(absPath, "utf8")
+            return `  <file path="${escapeXml(relPath)}">
 <![CDATA[${content}]]>
-  </file>`)
-        } else {
-          fileBlocks.push(`  <file>${escapeXml(absPath)}</file>`)
+  </file>`
+          } else {
+            return `  <file>${escapeXml(absPath)}</file>`
+          }
+        } catch (err: any) {
+          return `  <file>${escapeXml(absPath)}</file>`
         }
-      } catch (err: any) {
-        fileBlocks.push(`  <file>${escapeXml(absPath)}</file>`)
-      }
-    }
+      })
+    )
     requiredFilesXml = `\n\n<must_read_files>
   <description>以下是当前工作空间的必读文件清单。你在处理文件、执行任务或进行回复时，必须严格遵循这些文件中的定义、规范和设定：</description>
 ${fileBlocks.join("\n")}

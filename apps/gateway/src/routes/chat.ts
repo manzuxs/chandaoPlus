@@ -187,9 +187,16 @@ export function registerChatRoutes(app: any, deps: any) {
       }
       const confirmedSessionId = sessionId!
 
-      const contextSessionId = crypto.randomUUID()
-      const bundleDir = await writeContextBundle(workspace.rootPath, contextSessionId, request.page, conversationMessages)
+      const bundleDir = await writeContextBundle(workspace.rootPath, confirmedSessionId, request.page, conversationMessages)
       await deps.sessionStore.addContextBundleDir(confirmedSessionId, bundleDir)
+
+      const isLockedPage = request.page && request.page.metadata && 
+        (request.page.metadata.pageKind === "zentao-bug-detail" || request.page.metadata.pageKind === "zentao-task-detail")
+      if (isLockedPage) {
+        await deps.sessionStore.updateConfig(confirmedSessionId, {
+          lockedPage: request.page
+        })
+      }
 
       const adapter = deps.agentRegistry.get(request.agent)
       if (!adapter) {

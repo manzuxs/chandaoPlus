@@ -98,6 +98,9 @@ describe("opencodeAdapter", () => {
       onChunk,
     })
 
+    // 等待一拍，确保异步 buildPrompt 执行完且 child 开始被监听
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
     child.stdout.emit("data", Buffer.from(JSON.stringify({
       type: "text",
       sessionID: "ses_final_buffer",
@@ -133,6 +136,9 @@ describe("opencodeAdapter", () => {
         sessionStore: undefined,
         onChunk: vi.fn(),
       })
+
+      // 等待一拍，确保异步 buildPrompt 执行完且 child 开始被监听
+      await new Promise((resolve) => setTimeout(resolve, 10))
 
       child.stdout.emit("data", Buffer.from(`${JSON.stringify({
         type: "step_finish",
@@ -172,6 +178,9 @@ describe("opencodeAdapter", () => {
       sessionStore: undefined,
       onChunk,
     })
+
+    // 等待一拍，确保异步 buildPrompt 执行完且 child 开始被监听
+    await new Promise((resolve) => setTimeout(resolve, 10))
 
     child.stdout.emit("data", Buffer.from(`${JSON.stringify({
       type: "tool_use",

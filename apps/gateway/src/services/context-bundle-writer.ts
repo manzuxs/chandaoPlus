@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, writeFile, rm } from "node:fs/promises"
 import { join } from "node:path"
 import type { ChatMessage, PageCapture } from "@chandaoplus/shared"
 
@@ -29,6 +29,7 @@ export async function writeContextBundle(
   conversationMessages: ChatMessage[] = []
 ): Promise<string> {
   const bundleDir = join(workspaceRoot, ".chandaoplus", "sessions", sessionId)
+  await rm(join(bundleDir, "images"), { recursive: true, force: true })
   await mkdir(join(bundleDir, "images"), { recursive: true })
   await writeFile(join(bundleDir, "page.md"), page.markdown, "utf8")
   await writeFile(join(bundleDir, "conversation.md"), formatConversationHistory(conversationMessages), "utf8")

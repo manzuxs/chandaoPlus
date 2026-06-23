@@ -132,7 +132,7 @@ function streamProcess(
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
   async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
-    const prompt = buildPrompt({
+    const prompt = await buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
       bundleDir,
