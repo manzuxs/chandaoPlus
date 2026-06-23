@@ -61,6 +61,17 @@ const ClockIcon = () => (
   </svg>
 )
 
+const ListIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+)
+
 const renderSkillIcon = (skill: Skill) => {
   const iconType = skill.icon || ""
   if (iconType === "clock" || skill.id === "estimate") {
@@ -216,8 +227,53 @@ export function App() {
   const [pagePreviewCopied, setPagePreviewCopied] = useState(false)
   const [copyingPagePreview, setCopyingPagePreview] = useState(false)
   const [sessions, setSessions] = useState<SessionListItem[]>([])
+  const [isBatchMode, setIsBatchMode] = useState(false)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates, triggerBatchSkill, isProcessingQueue } = useChatSession(workspaceId)
+
+  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, deleteSessionsBatch, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates, triggerBatchSkill, isProcessingQueue } = useChatSession(workspaceId)
+
+  const closeHistoryDrawer = useCallback(() => {
+    setShowHistoryDrawer(false)
+    setIsBatchMode(false)
+    setSelectedSessionIds(new Set())
+  }, [])
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedSessionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleToggleSelectAll = useCallback(() => {
+    setSelectedSessionIds((prev) => {
+      if (prev.size === sessions.length) {
+        return new Set()
+      } else {
+        return new Set(sessions.map((s) => s.id))
+      }
+    })
+  }, [sessions])
+
+  const handleBatchDeleteConfirm = useCallback(() => {
+    if (selectedSessionIds.size === 0) return
+    const idsToDelete = Array.from(selectedSessionIds)
+    requestConfirm(
+      "批量删除会话",
+      `确定要删除选中的 ${idsToDelete.length} 个会话吗？删除后将无法恢复这些会话下的所有内容。`,
+      async () => {
+        await deleteSessionsBatch(idsToDelete)
+        setIsBatchMode(false)
+        setSelectedSessionIds(new Set())
+      }
+    )
+  }, [selectedSessionIds, deleteSessionsBatch])
 
   const [activeTabUrl, setActiveTabUrl] = useState<string>("")
   const [activeTabId, setActiveTabId] = useState<number | null>(null)
@@ -1153,29 +1209,48 @@ export function App() {
 
       {showHistoryDrawer && (
         <>
-          <div className="history-overlay" onClick={() => setShowHistoryDrawer(false)} />
+          <div className="history-overlay" onClick={closeHistoryDrawer} />
           <div className="history-drawer">
             <div className="history-drawer-header">
               <div>
                 <h3>历史会话</h3>
                 <p>共 {sessions.length} 个历史会话</p>
               </div>
-              <button type="button" className="btn-icon" onClick={() => setShowHistoryDrawer(false)} aria-label="关闭">
-                <XIcon />
-              </button>
+              <div className="history-drawer-header-actions" style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+                {sessions.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={() => {
+                      setIsBatchMode(!isBatchMode)
+                      setSelectedSessionIds(new Set())
+                    }}
+                    title={isBatchMode ? "退出管理" : "管理会话"}
+                    aria-label={isBatchMode ? "退出管理" : "管理会话"}
+                    style={{ color: isBatchMode ? "var(--accent-magenta)" : "var(--ink)" }}
+                  >
+                    {isBatchMode ? <CheckIcon /> : <ListIcon />}
+                  </button>
+                )}
+                <button type="button" className="btn-icon" onClick={closeHistoryDrawer} aria-label="关闭">
+                  <XIcon />
+                </button>
+              </div>
             </div>
-            <div className="history-drawer-body">
-              <button
-                type="button"
-                className="btn-pill btn-pill-primary"
-                style={{ width: "100%", justifyContent: "center", marginBottom: "var(--space-md)" }}
-                onClick={() => {
-                  newSession();
-                  setShowHistoryDrawer(false);
-                }}
-              >
-                + 新建会话
-              </button>
+            <div className="history-drawer-body" style={{ paddingBottom: isBatchMode ? "100px" : "var(--space-md)" }}>
+              {!isBatchMode && (
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-primary"
+                  style={{ width: "100%", justifyContent: "center", marginBottom: "var(--space-md)" }}
+                  onClick={() => {
+                    newSession();
+                    closeHistoryDrawer();
+                  }}
+                >
+                  + 新建会话
+                </button>
+              )}
               <div className="history-session-list">
                 {sessions.map((s) => {
                   const isActive = s.id === sessionId;
@@ -1188,68 +1263,92 @@ export function App() {
                   return (
                     <div
                       key={s.id}
-                      className={`history-session-item ${isActive ? "active" : ""}`}
+                      className={`history-session-item ${isActive ? "active" : ""} ${isBatchMode ? "batch-mode" : ""}`}
                       onClick={() => {
-                        loadSession(s.id);
-                        setShowHistoryDrawer(false);
+                        if (isBatchMode) {
+                          handleToggleSelect(s.id);
+                        } else {
+                          loadSession(s.id);
+                          closeHistoryDrawer();
+                        }
                       }}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
-                          loadSession(s.id);
-                          setShowHistoryDrawer(false);
+                          if (isBatchMode) {
+                            handleToggleSelect(s.id);
+                          } else {
+                            loadSession(s.id);
+                            closeHistoryDrawer();
+                          }
                         }
                       }}
                     >
-                      <div className="history-session-item-top">
-                        <span className="history-session-item-title">
-                          {s.title || s.id.slice(0, 8)}
-                          {runningTaskId && (
-                            <span className={`history-session-running-badge ${runningStatus === "stopping" ? "stopping" : "running"}`} title={runningStatus === "stopping" ? "正在停止后台任务" : "后台任务运行中"}>
-                              <span className="running-dot" />
-                              {runningStatus === "stopping" ? "停止中" : "运行中"}
+                      <div className="history-session-item-content" style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", width: "100%" }}>
+                        {isBatchMode && (
+                          <input
+                            type="checkbox"
+                            className="session-checkbox"
+                            checked={selectedSessionIds.has(s.id)}
+                            onChange={() => handleToggleSelect(s.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`选择会话 ${s.title || s.id.slice(0, 8)}`}
+                          />
+                        )}
+                        <div className="history-session-item-details" style={{ flex: 1, minWidth: 0 }}>
+                          <div className="history-session-item-top">
+                            <span className="history-session-item-title">
+                              {s.title || s.id.slice(0, 8)}
+                              {runningTaskId && (
+                                <span className={`history-session-running-badge ${runningStatus === "stopping" ? "stopping" : "running"}`} title={runningStatus === "stopping" ? "正在停止后台任务" : "后台任务运行中"}>
+                                  <span className="running-dot" />
+                                  {runningStatus === "stopping" ? "停止中" : "运行中"}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                        <span className="history-session-item-time">
-                          {formatSessionTime(s.updatedAt)}
-                        </span>
-                      </div>
-                      <div className="history-session-item-meta">
-                        <span className="history-session-item-preview">
-                          {s.messageCount} 条消息{s.lastMessage ? ` · ${s.lastMessage}` : ""}
-                        </span>
-                        <div className="history-session-item-meta-right" onClick={(e) => e.stopPropagation()}>
-                          {isActive && <span className="history-session-item-current">当前</span>}
-                          {runningTaskId && (
-                            <button
-                              type="button"
-                              className="btn-stop-session-quick"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                stop(s.id, runningTaskId);
-                              }}
-                              title="终止后台任务"
-                              aria-label="终止后台任务"
-                            >
-                              <StopIcon />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn-delete-session"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              requestConfirm("删除会话", "确定要删除这个会话吗？删除后将无法恢复该会话下的所有内容。", () => {
-                                deleteSession(s.id, runningTaskId);
-                              });
-                            }}
-                            title="删除会话"
-                            aria-label="删除会话"
-                          >
-                            <TrashIcon />
-                          </button>
+                            <span className="history-session-item-time">
+                              {formatSessionTime(s.updatedAt)}
+                            </span>
+                          </div>
+                          <div className="history-session-item-meta">
+                            <span className="history-session-item-preview">
+                              {s.messageCount} 条消息{s.lastMessage ? ` · ${s.lastMessage}` : ""}
+                            </span>
+                            {!isBatchMode && (
+                              <div className="history-session-item-meta-right" onClick={(e) => e.stopPropagation()}>
+                                {isActive && <span className="history-session-item-current">当前</span>}
+                                {runningTaskId && (
+                                  <button
+                                    type="button"
+                                    className="btn-stop-session-quick"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      stop(s.id, runningTaskId);
+                                    }}
+                                    title="终止后台任务"
+                                    aria-label="终止后台任务"
+                                  >
+                                    <StopIcon />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="btn-delete-session"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    requestConfirm("删除会话", "确定要删除这个会话吗？删除后将无法恢复该会话下的所有内容。", () => {
+                                      deleteSession(s.id, runningTaskId);
+                                    });
+                                  }}
+                                  title="删除会话"
+                                  aria-label="删除会话"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1260,6 +1359,63 @@ export function App() {
                 )}
               </div>
             </div>
+            {isBatchMode && (
+              <div className="batch-action-bar" style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: "var(--canvas)",
+                borderTop: "var(--space-hair) solid var(--hairline)",
+                padding: "var(--space-md)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-sm)",
+                boxShadow: "0 -2px 10px rgba(0,0,0,0.05)",
+                zIndex: 10
+              }}>
+                <div className="batch-action-bar-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="batch-selected-count" style={{ fontSize: "13px", fontWeight: "var(--weight-bold)" }}>已选择 {selectedSessionIds.size} 个会话</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    style={{ fontSize: "12px", color: "var(--ink)", textDecoration: "underline", cursor: "pointer" }}
+                  >
+                    {selectedSessionIds.size === sessions.length ? "取消全选" : "全选"}
+                  </button>
+                </div>
+                <div className="batch-action-buttons" style={{ display: "flex", gap: "var(--space-sm)" }}>
+                  <button
+                    type="button"
+                    className="btn-pill btn-pill-secondary"
+                    onClick={() => {
+                      setIsBatchMode(false)
+                      setSelectedSessionIds(new Set())
+                    }}
+                    style={{ flex: 1, justifyContent: "center", padding: "6px 12px", fontSize: "13px" }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-pill btn-pill-primary"
+                    disabled={selectedSessionIds.size === 0}
+                    onClick={handleBatchDeleteConfirm}
+                    style={{
+                      flex: 1,
+                      justifyContent: "center",
+                      padding: "6px 12px",
+                      fontSize: "13px",
+                      backgroundColor: selectedSessionIds.size === 0 ? "var(--surface-soft)" : "var(--accent-magenta)",
+                      color: selectedSessionIds.size === 0 ? "var(--hairline)" : "var(--canvas)",
+                      cursor: selectedSessionIds.size === 0 ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

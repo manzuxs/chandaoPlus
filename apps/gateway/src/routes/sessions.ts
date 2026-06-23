@@ -68,5 +68,30 @@ export function registerSessionRoutes(app: any, deps: any) {
     }
   })
 
+  router.post("/batch-delete", async (req, res) => {
+    try {
+      const { ids } = req.body
+      if (!Array.isArray(ids) || ids.length === 0) {
+        res.status(400).json({ error: "ids must be a non-empty array" })
+        return
+      }
+
+      if (deps.chatTaskStore) {
+        for (const task of deps.chatTaskStore.values()) {
+          if (ids.includes(task.sessionId)) {
+            task.stopRequested = true
+            task.abortController?.abort()
+            deps.chatTaskStore.delete(task.id)
+          }
+        }
+      }
+
+      await deps.sessionStore.deleteBatch(ids)
+      res.status(204).end()
+    } catch (err: any) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   app.use("/api/sessions", router)
 }

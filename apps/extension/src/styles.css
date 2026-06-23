@@ -676,6 +676,40 @@ button {
   stroke-width: 2.2;
 }
 
+/* === Batch Mode in History Drawer === */
+.history-session-item.batch-mode {
+  border-color: transparent !important;
+}
+
+.history-session-item.batch-mode:hover {
+  background-color: var(--surface-soft);
+}
+
+.session-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--hairline-soft);
+  accent-color: var(--accent-magenta);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-text-link {
+  font-size: 12px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: var(--space-xs);
+  opacity: 0.7;
+}
+
+.btn-text-link:hover {
+  opacity: 1;
+}
+
 /* Message Block & Actions */
 .message-block {
   display: flex;

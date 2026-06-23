@@ -1293,4 +1293,160 @@ describe("App", () => {
     // 触发器应该更新为 "推理：超高"
     await screen.findByText("推理：超高")
   })
+
+  it("supports batch deleting sessions with select all, individual selection, and confirmation", async () => {
+    let sessionList = [
+      {
+        id: "session-1",
+        workspaceId: "ws-1",
+        title: "会话一",
+        messageCount: 2,
+        lastMessage: "你好",
+        createdAt: "2026-06-15T03:00:00Z",
+        updatedAt: "2026-06-15T03:00:00Z"
+      },
+      {
+        id: "session-2",
+        workspaceId: "ws-1",
+        title: "会话二",
+        messageCount: 1,
+        lastMessage: "测试",
+        createdAt: "2026-06-15T03:01:00Z",
+        updatedAt: "2026-06-15T03:01:00Z"
+      }
+    ]
+
+    const customFetchMock = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (url.includes("/api/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: "ws-1", label: "工作空间一", rootPath: "/ws-1" }])
+        })
+      }
+      if (url.includes("/api/skills")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        })
+      }
+      if (url.includes("/api/sessions?workspaceId=")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(sessionList)
+        })
+      }
+      if (url.includes("/api/sessions/batch-delete") && options?.method === "POST") {
+        const body = JSON.parse(options.body)
+        sessionList = sessionList.filter(s => !body.ids.includes(s.id))
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true })
+        })
+      }
+      if (url.includes("/api/chat/models")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        })
+      }
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", customFetchMock)
+
+    const storageGetMock = vi.fn().mockImplementation((keys: any, callback?: any) => {
+      const result: Record<string, any> = {}
+      if (Array.isArray(keys) && keys.includes("lastWorkspaceId")) {
+        result.lastWorkspaceId = "ws-1"
+      }
+      if (typeof callback === "function") {
+        callback(result)
+      }
+      return Promise.resolve(result)
+    })
+
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: vi.fn(),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() }
+      },
+      storage: {
+        local: {
+          get: storageGetMock,
+          set: vi.fn(),
+          remove: vi.fn()
+        }
+      }
+    })
+
+    render(<App />)
+
+    // 1. 等待工作空间一加载完毕并渲染出来
+    await screen.findByText("工作空间一")
+
+    // 2. 打开历史抽屉
+    const historyBtn = screen.getByRole("button", { name: "历史会话" })
+    fireEvent.click(historyBtn)
+
+    // 3. 等待会话一、会话二在抽屉中渲染
+    await screen.findByText("会话一")
+    await screen.findByText("会话二")
+
+    // 4. 点击管理按钮切换到编辑模式
+    const manageBtn = screen.getByRole("button", { name: "管理会话" })
+    fireEvent.click(manageBtn)
+
+    // 5. 验证进入管理模式：按钮文字变为“退出管理”
+    expect(screen.getByRole("button", { name: "退出管理" })).toBeTruthy()
+
+    // 验证底部删除按钮是禁用状态（当前未选中任何会话）
+    const deleteBtn = screen.getByRole("button", { name: "删除" })
+    expect((deleteBtn as HTMLButtonElement).disabled).toBe(true)
+
+    // 6. 点击全选按钮
+    const selectAllBtn = screen.getByRole("button", { name: "全选" })
+    fireEvent.click(selectAllBtn)
+
+    // 验证所有会话都被选中，已选择数变为 2
+    expect(screen.getByText("已选择 2 个会话")).toBeTruthy()
+    expect((deleteBtn as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole("button", { name: "取消全选" })).toBeTruthy()
+
+    // 7. 点击取消全选
+    const deselectAllBtn = screen.getByRole("button", { name: "取消全选" })
+    fireEvent.click(deselectAllBtn)
+    expect(screen.getByText("已选择 0 个会话")).toBeTruthy()
+    expect((deleteBtn as HTMLButtonElement).disabled).toBe(true)
+
+    // 8. 勾选特定的复选框（会话一）
+    const checkbox1 = screen.getByLabelText("选择会话 会话一")
+    fireEvent.click(checkbox1)
+    expect(screen.getByText("已选择 1 个会话")).toBeTruthy()
+    expect((deleteBtn as HTMLButtonElement).disabled).toBe(false)
+
+    // 9. 点击底部删除按钮，弹出二次确认框
+    fireEvent.click(deleteBtn)
+
+    // 10. 点击确认删除按钮
+    const confirmBtn = await screen.findByRole("button", { name: "确认删除" })
+    fireEvent.click(confirmBtn)
+
+    // 11. 验证调用了批量删除的 POST API，且参数为 session-1
+    expect(customFetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3210/api/sessions/batch-delete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ ids: ["session-1"] })
+      })
+    )
+
+    // 12. 验证成功清空被删除的会话，且自动退出管理模式
+    await waitFor(() => {
+      expect(screen.queryByText("会话一")).toBeNull()
+      expect(screen.getByText("会话二")).toBeTruthy()
+      expect(screen.queryByRole("button", { name: "退出管理" })).toBeNull()
+      expect(screen.getByRole("button", { name: "管理会话" })).toBeTruthy()
+    })
+  })
 })

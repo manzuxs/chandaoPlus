@@ -154,6 +154,28 @@ export class SessionStore {
     });
   }
 
+  async deleteBatch(sessionIds: string[]): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const matchedRecords = records.filter((r) => sessionIds.includes(r.id));
+      if (matchedRecords.length === 0) return;
+      const remainingRecords = records.filter((r) => !sessionIds.includes(r.id));
+      await this.writeAll(remainingRecords);
+
+      const allDirs: string[] = [];
+      for (const record of matchedRecords) {
+        if (record.contextBundleDirs?.length) {
+          allDirs.push(...record.contextBundleDirs);
+        }
+      }
+      if (allDirs.length > 0) {
+        await Promise.allSettled(
+          allDirs.map((dir) => rm(dir, { recursive: true, force: true }))
+        );
+      }
+    });
+  }
+
   async addContextBundleDir(sessionId: string, bundleDir: string): Promise<void> {
     return this.withLock(async () => {
       const records = await this.readAll();

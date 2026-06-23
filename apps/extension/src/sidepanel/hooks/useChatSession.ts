@@ -486,6 +486,49 @@ export function useChatSession(workspaceId: string) {
     }
   }, [sessionId, workspaceId, stopRunningTask])
 
+  const deleteSessionsBatch = useCallback(async (ids: string[]) => {
+    try {
+      for (const id of ids) {
+        const taskId = sessionStatesRef.current[id]?.runningTaskId
+        if (taskId) {
+          await stopRunningTask(taskId).catch((err) => {
+            console.error("Failed to stop task before batch deleting sessions:", err)
+          })
+        }
+        abortControllersRef.current[id]?.abort()
+        delete abortControllersRef.current[id]
+      }
+
+      const res = await fetch("http://127.0.0.1:3210/api/sessions/batch-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids })
+      })
+      if (res.ok) {
+        setSessionStates((prev) => {
+          const next = { ...prev }
+          for (const id of ids) {
+            delete next[id]
+          }
+          return next
+        })
+        if (sessionId && ids.includes(sessionId)) {
+          setSessionId(null)
+          if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local && workspaceId) {
+            await chrome.storage.local.remove(`session_${workspaceId}`)
+          }
+        }
+        setSessionVersion((v) => v + 1)
+      } else {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to batch delete sessions")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("批量删除会话失败")
+    }
+  }, [sessionId, workspaceId, stopRunningTask])
+
   const newSession = useCallback(() => {
     // 放弃当前工作空间的新会话时，如果临时会话正在发送，将其 abort
     abortControllersRef.current[tempSessionKey]?.abort()
@@ -1307,6 +1350,7 @@ export function useChatSession(workspaceId: string) {
     updateWorkspace,
     deleteWorkspace,
     deleteSession,
+    deleteSessionsBatch,
     loadWorkspaces,
     saveSkill,
     deleteSkill,

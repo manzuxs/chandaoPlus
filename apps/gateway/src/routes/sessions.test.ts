@@ -108,4 +108,50 @@ describe("Session Routes", () => {
     expect(abortSpy).toHaveBeenCalled()
     expect(chatTaskStoreMock.has("task-1")).toBe(false)
   })
+
+  it("POST /api/sessions/batch-delete deletes sessions in batch and aborts active tasks", async () => {
+    const session1 = await store.create("ws-1")
+    const session2 = await store.create("ws-1")
+    
+    const abortSpy1 = vi.fn()
+    const abortSpy2 = vi.fn()
+    const mockTask1 = {
+      id: "task-1",
+      sessionId: session1.id,
+      workspaceId: "ws-1",
+      abortController: { abort: abortSpy1 },
+      stopRequested: false
+    }
+    const mockTask2 = {
+      id: "task-2",
+      sessionId: session2.id,
+      workspaceId: "ws-1",
+      abortController: { abort: abortSpy2 },
+      stopRequested: false
+    }
+    chatTaskStoreMock.set(mockTask1.id, mockTask1)
+    chatTaskStoreMock.set(mockTask2.id, mockTask2)
+
+    const res = await request(app)
+      .post("/api/sessions/batch-delete")
+      .send({ ids: [session1.id, session2.id] })
+      
+    expect(res.status).toBe(204)
+    expect(mockTask1.stopRequested).toBe(true)
+    expect(mockTask2.stopRequested).toBe(true)
+    expect(abortSpy1).toHaveBeenCalled()
+    expect(abortSpy2).toHaveBeenCalled()
+    expect(chatTaskStoreMock.has("task-1")).toBe(false)
+    expect(chatTaskStoreMock.has("task-2")).toBe(false)
+
+    expect(await store.get(session1.id)).toBeUndefined()
+    expect(await store.get(session2.id)).toBeUndefined()
+  })
+
+  it("POST /api/sessions/batch-delete returns 400 for invalid body", async () => {
+    const res = await request(app)
+      .post("/api/sessions/batch-delete")
+      .send({})
+    expect(res.status).toBe(400)
+  })
 })
