@@ -198,8 +198,15 @@ export const opencodeAdapter: AgentAdapter = {
     if (!args.includes("--pure")) {
       args.push("--pure")
     }
-    if (!args.includes("--dangerously-skip-permissions")) {
-      args.push("--dangerously-skip-permissions")
+    const skipIndex = args.indexOf("--dangerously-skip-permissions")
+    if (request.permissionMode === "full") {
+      if (skipIndex === -1) {
+        args.push("--dangerously-skip-permissions")
+      }
+    } else {
+      if (skipIndex !== -1) {
+        args.splice(skipIndex, 1)
+      }
     }
 
     // 从 sessionStore 读取已持久化的 OpenCode 真实 session ID

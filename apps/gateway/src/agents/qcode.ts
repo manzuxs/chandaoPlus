@@ -231,14 +231,10 @@ export const qcodeAdapter: AgentAdapter = {
       args.push("--model", request.model)
     }
 
-    if (request.permissionMode && request.permissionMode !== "custom") {
-      if (request.permissionMode === "ask") {
-        args.push("--permission-mode", "default")
-      } else if (request.permissionMode === "auto") {
-        args.push("--permission-mode", "auto")
-      } else if (request.permissionMode === "full") {
-        args.push("--dangerously-skip-permissions")
-      }
+    if (request.permissionMode === "full") {
+      args.push("--dangerously-skip-permissions")
+    } else {
+      args.push("--permission-mode", "default")
     }
 
     try {

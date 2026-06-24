@@ -165,7 +165,6 @@ export function App() {
   })
   const [agentMenuOpen, setAgentMenuOpen] = useState(false)
   const [agentModelMenuOpen, setAgentModelMenuOpen] = useState(false)
-  const [permissionMenuOpen, setPermissionMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [input, setInput] = useState("")
 
@@ -535,7 +534,6 @@ export function App() {
     setAgent(a)
     setAgentMenuOpen(false)
     setAgentModelMenuOpen(false)
-    setPermissionMenuOpen(false)
     setModelMenuOpen(false)
     localStorage.setItem("chandaoplus_last_agent", a)
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
@@ -731,7 +729,6 @@ export function App() {
       )}
 
       <div className="app-body" onClick={() => {
-        setPermissionMenuOpen(false)
         setModelMenuOpen(false)
         setAgentMenuOpen(false)
         setAgentModelMenuOpen(false)
@@ -800,7 +797,6 @@ export function App() {
             ref={textareaRef}
             value={input}
             onClick={() => {
-              setPermissionMenuOpen(false)
               setModelMenuOpen(false)
               setAgentMenuOpen(false)
               setAgentModelMenuOpen(false)
@@ -836,7 +832,6 @@ export function App() {
                     e.stopPropagation()
                     setAgentMenuOpen(!agentMenuOpen)
                     setAgentModelMenuOpen(false)
-                    setPermissionMenuOpen(false)
                     setModelMenuOpen(false)
                   }}
                   role="button"
@@ -845,7 +840,6 @@ export function App() {
                     if (e.key === "Enter" || e.key === " ") {
                       setAgentMenuOpen(!agentMenuOpen)
                       setAgentModelMenuOpen(false)
-                      setPermissionMenuOpen(false)
                       setModelMenuOpen(false)
                     }
                   }}
@@ -950,7 +944,6 @@ export function App() {
                     e.stopPropagation()
                     setAgentModelMenuOpen(!agentModelMenuOpen)
                     setAgentMenuOpen(false)
-                    setPermissionMenuOpen(false)
                     setModelMenuOpen(false)
                   }}
                   role="button"
@@ -959,7 +952,6 @@ export function App() {
                     if (e.key === "Enter" || e.key === " ") {
                       setAgentModelMenuOpen(!agentModelMenuOpen)
                       setAgentMenuOpen(false)
-                      setPermissionMenuOpen(false)
                       setModelMenuOpen(false)
                     }
                   }}
@@ -1014,103 +1006,28 @@ export function App() {
               {/* 权限级别选择器 */}
               <div className="permission-selector">
                 <div
-                  className={`permission-selector-trigger ${permissionMenuOpen ? "open" : ""} ${permissionMode === "full" ? "warning" : ""}`}
+                  className={`permission-selector-trigger ${permissionMode === "full" ? "warning" : ""}`}
                   onClick={(e) => {
                     e.stopPropagation()
-                    setPermissionMenuOpen(!permissionMenuOpen)
-                    setAgentMenuOpen(false)
-                    setAgentModelMenuOpen(false)
-                    setModelMenuOpen(false)
+                    setSessionConfig({ permissionMode: permissionMode === "full" ? "ask" : "full" })
                   }}
                   role="button"
                   tabIndex={0}
-                  title="审批与权限策略"
+                  title={permissionMode === "full" ? "完全访问权限已开启（不受限制）" : "完全访问权限已关闭（受限访问）"}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
-                      setPermissionMenuOpen(!permissionMenuOpen)
-                      setAgentMenuOpen(false)
-                      setAgentModelMenuOpen(false)
-                      setModelMenuOpen(false)
+                      e.stopPropagation()
+                      setSessionConfig({ permissionMode: permissionMode === "full" ? "ask" : "full" })
                     }
                   }}
                 >
                   <span className="permission-icon">
-                    {permissionMode === "ask" && <HandIcon />}
-                    {permissionMode === "auto" && <ShieldIcon />}
-                    {permissionMode === "full" && <AlertCircleIcon />}
-                    {permissionMode === "custom" && <GearIcon />}
+                    {permissionMode === "full" ? <AlertCircleIcon /> : <ShieldIcon />}
                   </span>
                   <span>
-                    {permissionMode === "ask" && "请求批准"}
-                    {permissionMode === "auto" && "替我审批"}
-                    {permissionMode === "full" && "完全访问"}
-                    {permissionMode === "custom" && "自定义"}
+                    {permissionMode === "full" ? "完全访问" : "受限访问"}
                   </span>
-                  <ChevronDownIcon />
                 </div>
-                {permissionMenuOpen && (
-                  <div className="permission-menu">
-                    <div className="permission-menu-header">
-                      应如何批准 {agent === "claude-code" ? "Claude" : agent === "codex" ? "Codex" : agent === "opencode" ? "OpenCode" : agent === "antigravity" ? "Antigravity" : "Qcode"} 操作？
-                    </div>
-                    <div
-                      className="permission-menu-item"
-                      onClick={() => {
-                        setSessionConfig({ permissionMode: "ask" })
-                        setPermissionMenuOpen(false)
-                      }}
-                    >
-                      <span className="item-icon"><HandIcon /></span>
-                      <div className="item-details">
-                        <div className="item-name">请求批准</div>
-                        <div className="item-desc">编辑外部文件和使用互联网时始终询问</div>
-                      </div>
-                      {permissionMode === "ask" && <span className="item-check"><CheckIcon /></span>}
-                    </div>
-                    <div
-                      className="permission-menu-item"
-                      onClick={() => {
-                        setSessionConfig({ permissionMode: "auto" })
-                        setPermissionMenuOpen(false)
-                      }}
-                    >
-                      <span className="item-icon"><ShieldIcon /></span>
-                      <div className="item-details">
-                        <div className="item-name">替我审批</div>
-                        <div className="item-desc">仅对检测到的风险操作请求批准</div>
-                      </div>
-                      {permissionMode === "auto" && <span className="item-check"><CheckIcon /></span>}
-                    </div>
-                    <div
-                      className={`permission-menu-item ${permissionMode === "full" ? "active" : ""}`}
-                      onClick={() => {
-                        setSessionConfig({ permissionMode: "full" })
-                        setPermissionMenuOpen(false)
-                      }}
-                    >
-                      <span className="item-icon warning"><AlertCircleIcon /></span>
-                      <div className="item-details">
-                        <div className="item-name">完全访问权限</div>
-                        <div className="item-desc">可不受限制地访问互联网和您电脑上的任何文件</div>
-                      </div>
-                      {permissionMode === "full" && <span className="item-check"><CheckIcon /></span>}
-                    </div>
-                    <div
-                      className="permission-menu-item"
-                      onClick={() => {
-                        setSessionConfig({ permissionMode: "custom" })
-                        setPermissionMenuOpen(false)
-                      }}
-                    >
-                      <span className="item-icon"><GearIcon /></span>
-                      <div className="item-details">
-                        <div className="item-name">自定义 (config.toml)</div>
-                        <div className="item-desc">使用配置文件中定义的权限</div>
-                      </div>
-                      {permissionMode === "custom" && <span className="item-check"><CheckIcon /></span>}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1124,7 +1041,6 @@ export function App() {
                     setModelMenuOpen(!modelMenuOpen)
                     setAgentMenuOpen(false)
                     setAgentModelMenuOpen(false)
-                    setPermissionMenuOpen(false)
                   }}
                   role="button"
                   tabIndex={0}
@@ -1134,7 +1050,6 @@ export function App() {
                       setModelMenuOpen(!modelMenuOpen)
                       setAgentMenuOpen(false)
                       setAgentModelMenuOpen(false)
-                      setPermissionMenuOpen(false)
                     }
                   }}
                 >

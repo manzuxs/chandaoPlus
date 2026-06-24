@@ -221,14 +221,10 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
 
     // 拼入前端指定的权限审批标志
-    if (request.permissionMode && request.permissionMode !== "custom") {
-      if (request.permissionMode === "ask") {
-        args.push("--permission-mode", "plan")
-      } else if (request.permissionMode === "auto") {
-        args.push("--permission-mode", "auto")
-      } else if (request.permissionMode === "full") {
-        args.push("--permission-mode", "bypassPermissions")
-      }
+    if (request.permissionMode === "full") {
+      args.push("--permission-mode", "bypassPermissions")
+    } else {
+      args.push("--permission-mode", "plan")
     }
 
     try {

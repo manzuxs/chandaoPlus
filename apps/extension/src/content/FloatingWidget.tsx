@@ -360,14 +360,14 @@ export function FloatingWidget() {
               </div>
 
               <div className="fw-field">
-                <label>权限模式</label>
+                <label>完全权限</label>
                 <select value={selectedPermission} onChange={async (e) => {
                   const val = e.target.value
                   setSelectedPermission(val)
                   await updateAgentSettingsInStorage(agentId, { permissionMode: val })
                 }}>
-                  <option value="full">完全访问</option>
-                  <option value="semi">半自动 (询问)</option>
+                  <option value="full">开启</option>
+                  <option value="ask">关闭</option>
                 </select>
               </div>
 
