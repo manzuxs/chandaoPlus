@@ -4,7 +4,7 @@ import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { generateSummary } from "../services/summarizer"
 import { validateWorkspaceRoot } from "../services/workspace-validator"
-import { CODEX_BIN, OPENCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
+import { CODEX_BIN, OPENCODE_BIN, QCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
 
 type TaskStatus = "running" | "completed" | "error" | "stopped"
 
@@ -402,12 +402,50 @@ export function registerChatRoutes(app: any, deps: any) {
       }
 
       if (agent === "qcode") {
-        res.json([
-          { id: "default", name: "默认模型 (Qcode Standard)", hasReasoning: true },
-          { id: "qcode-standard", name: "Qcode Standard", hasReasoning: false },
-          { id: "qcode-pro", name: "Qcode Pro", hasReasoning: true }
-        ])
-        return
+        const { exec } = await import("node:child_process")
+        const { promisify } = await import("node:util")
+        const execAsync = promisify(exec)
+        
+        try {
+          const bin = process.env.QCODE_BIN || QCODE_BIN || "qodercli"
+          const { stdout } = await execAsync(`${bin} --list-models`, { maxBuffer: 10 * 1024 * 1024 })
+          const lines = stdout.split("\n").map(l => l.trim()).filter(Boolean)
+          
+          // 过滤掉首行标题 "MODEL" 或是其他非模型行
+          const modelLines = lines.filter(line => line.toUpperCase() !== "MODEL")
+          
+          const mapped = modelLines.map((line) => {
+            const lower = line.toLowerCase()
+            const isReasoning = lower.includes("reasoner") || 
+                                lower.includes("pro") || 
+                                lower.includes("max") ||
+                                lower.includes("ultimate") ||
+                                lower.includes("performance")
+            return {
+              id: line, // 保留原始行值作为 ID 传入命令行
+              name: line,
+              hasReasoning: isReasoning
+            }
+          })
+          
+          // 如果没有获取到模型，或者解析为空，回退提供默认的分级模型
+          if (mapped.length === 0) {
+            mapped.push(
+              { id: "Auto", name: "Auto", hasReasoning: true },
+              { id: "Ultimate", name: "Ultimate", hasReasoning: true },
+              { id: "Performance", name: "Performance", hasReasoning: true },
+              { id: "Efficient", name: "Efficient", hasReasoning: false },
+              { id: "Lite", name: "Lite", hasReasoning: false }
+            )
+          }
+          
+          res.json(mapped)
+          return
+        } catch (err: any) {
+          console.error("Failed to run qodercli --list-models:", err)
+          res.status(500).json({ error: `Failed to query qcode models: ${err.message}` })
+          return
+        }
       }
 
       if (agent === "antigravity") {

@@ -192,12 +192,6 @@ export const qcodeAdapter: AgentAdapter = {
     if (!args.includes("--output-format")) {
       args.push("--output-format", "stream-json")
     }
-    if (!args.includes("--include-partial-messages")) {
-      args.push("--include-partial-messages")
-    }
-    if (!args.includes("--verbose")) {
-      args.push("--verbose")
-    }
 
     if (request.sessionId && sessionStore) {
       const existing = await sessionStore.get(request.sessionId)
@@ -210,7 +204,7 @@ export const qcodeAdapter: AgentAdapter = {
     }
 
     if (request.effort) {
-      args.push("--effort", request.effort)
+      args.push("--reasoning-effort", request.effort)
     }
 
     if (request.model && request.model !== "default") {
@@ -219,24 +213,17 @@ export const qcodeAdapter: AgentAdapter = {
 
     if (request.permissionMode && request.permissionMode !== "custom") {
       if (request.permissionMode === "ask") {
-        args.push("--permission-mode", "plan")
+        args.push("--permission-mode", "default")
       } else if (request.permissionMode === "auto") {
         args.push("--permission-mode", "auto")
       } else if (request.permissionMode === "full") {
-        args.push("--permission-mode", "bypassPermissions")
+        args.push("--permission-mode", "bypass_permissions")
       }
     }
 
     try {
       await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
     } catch (err: any) {
-      if (err.code === "ENOENT" || err.message.includes("ENOENT")) {
-        console.warn(`[Qcode] Command ${bin} not found. Fallback to Claude Code.`)
-        onChunk({ type: "status", content: "提示：本地未检测到 qcode 命令行工具，已自动降级为 Claude Code 执行..." })
-        const { claudeCodeAdapter } = await import("./claude-code")
-        return claudeCodeAdapter.run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal })
-      }
-
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
       
