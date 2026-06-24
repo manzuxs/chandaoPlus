@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { WorkspaceProfileSchema } from "@chandaoplus/shared"
+import { validateWorkspaceRoot } from "../services/workspace-validator"
 
 export function registerWorkspaceRoutes(app: any, deps: any) {
   const router = Router()
@@ -16,6 +17,11 @@ export function registerWorkspaceRoutes(app: any, deps: any) {
   router.post("/", async (req, res) => {
     try {
       const profile = WorkspaceProfileSchema.parse(req.body)
+      const validation = validateWorkspaceRoot(profile.rootPath)
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.reason })
+        return
+      }
       await deps.workspaceStore.save(profile)
       res.json({ success: true })
     } catch (err: any) {
@@ -31,6 +37,11 @@ export function registerWorkspaceRoutes(app: any, deps: any) {
         return
       }
       const profile = WorkspaceProfileSchema.parse({ ...existing, ...req.body, id: req.params.id })
+      const validation = validateWorkspaceRoot(profile.rootPath)
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.reason })
+        return
+      }
       await deps.workspaceStore.save(profile)
       res.json({ success: true })
     } catch (err: any) {

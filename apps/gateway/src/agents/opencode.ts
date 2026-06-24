@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawnWithCleanup } from "./process-cleanup"
 import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { OPENCODE_BIN, OPENCODE_ARGS } from "../config"
@@ -46,18 +46,14 @@ function streamProcessOpencode(
         logAgentChunk("OpenCode", { type: "text", content: line })
       }
     }
-    const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
+    const child = spawnWithCleanup(command, args, { cwd, env }, signal)
     console.log(`[OpenCode start] pid=${child.pid ?? "unknown"} cwd=${cwd} command=${command} args=${JSON.stringify(args)}`)
     const heartbeat = setInterval(() => {
       const idleMs = Date.now() - lastActivityAt
       const elapsedMs = Date.now() - startedAt
       console.log(`[OpenCode heartbeat] pid=${child.pid ?? "unknown"} elapsedMs=${elapsedMs} idleMs=${idleMs} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes} textChunks=${textChunks} events=${JSON.stringify(eventCounts)}`)
     }, 15000)
-    signal?.addEventListener("abort", () => {
-      console.log(`[OpenCode abort] pid=${child.pid ?? "unknown"}`)
-      child.kill("SIGTERM")
-    }, { once: true })
-    
+
     child.stdin.write(prompt)
     child.stdin.end()
  

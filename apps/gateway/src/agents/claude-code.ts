@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawnWithCleanup } from "./process-cleanup"
 import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { CLAUDE_BIN, CLAUDE_ARGS } from "../config"
@@ -28,11 +28,8 @@ function streamProcess(
       GEMINI_API_TIMEOUT: "600000",
       CLAUDE_API_TIMEOUT: "600000"
     }
-    const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
-    signal?.addEventListener("abort", () => {
-      child.kill("SIGTERM")
-    }, { once: true })
-    
+    const child = spawnWithCleanup(command, args, { cwd, env }, signal)
+
     child.stdin.write(prompt)
     child.stdin.end()
 

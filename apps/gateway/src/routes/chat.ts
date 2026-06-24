@@ -3,6 +3,7 @@ import crypto from "node:crypto"
 import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { generateSummary } from "../services/summarizer"
+import { validateWorkspaceRoot } from "../services/workspace-validator"
 import { CODEX_BIN, OPENCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
 
 type TaskStatus = "running" | "completed" | "error" | "stopped"
@@ -33,6 +34,11 @@ export function registerChatRoutes(app: any, deps: any) {
   const summarizeInProgress = new Set<string>()
   // Only re-summarize when at least this many new messages have accumulated
   const SUMMARIZE_MIN_INTERVAL = 5
+
+  // Rate limit: track spawn timestamps per session to prevent process explosion
+  const sessionSpawnTimestamps = new Map<string, number[]>()
+  const MAX_SPAWNS_PER_MINUTE = 3
+  const SPAWN_WINDOW_MS = 60_000
 
   const emitTaskEvent = (task: ChatTask, chunk: any) => {
     const seq = task.events.length
@@ -185,6 +191,13 @@ export function registerChatRoutes(app: any, deps: any) {
         return
       }
 
+      // Safety net: reject workspace pointing to dangerous directories
+      const rootValidation = validateWorkspaceRoot(workspace.rootPath)
+      if (!rootValidation.valid) {
+        res.status(400).json({ error: rootValidation.reason })
+        return
+      }
+
       // 处理 session：复用或创建
       let sessionId = request.sessionId
       let conversationMessages: ChatMessage[] = []
@@ -245,6 +258,28 @@ export function registerChatRoutes(app: any, deps: any) {
         res.write(`data: ${JSON.stringify({ type: "error", content: `agent not found: ${request.agent}` })}\n\n`)
         res.end()
         return
+      }
+
+      // Rate limit: prevent process explosion from retry loops
+      const now = Date.now()
+      const timestamps = sessionSpawnTimestamps.get(confirmedSessionId) ?? []
+      const recentSpawns = timestamps.filter((t) => now - t < SPAWN_WINDOW_MS)
+      if (recentSpawns.length >= MAX_SPAWNS_PER_MINUTE) {
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
+        res.write(`data: ${JSON.stringify({ type: "error", content: "请求过于频繁，请等待后再试" })}\n\n`)
+        res.end()
+        return
+      }
+      recentSpawns.push(now)
+      sessionSpawnTimestamps.set(confirmedSessionId, recentSpawns)
+
+      // Periodic cleanup of stale timestamps
+      if (sessionSpawnTimestamps.size > 100) {
+        for (const [sid, stamps] of sessionSpawnTimestamps) {
+          const fresh = stamps.filter((t) => now - t < SPAWN_WINDOW_MS)
+          if (fresh.length === 0) sessionSpawnTimestamps.delete(sid)
+          else sessionSpawnTimestamps.set(sid, fresh)
+        }
       }
 
       const task: ChatTask = {

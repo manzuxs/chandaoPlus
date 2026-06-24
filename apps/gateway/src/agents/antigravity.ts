@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawnWithCleanup } from "./process-cleanup"
 import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { ANTIGRAVITY_BIN, ANTIGRAVITY_ARGS } from "../config"
@@ -28,15 +28,8 @@ function streamProcess(
       GEMINI_API_TIMEOUT: "600000",
       CLAUDE_API_TIMEOUT: "600000"
     }
-    const child = spawn(command, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] })
-    signal?.addEventListener("abort", () => {
-      child.kill("SIGTERM")
-      setTimeout(() => {
-        try { child.kill("SIGKILL") } catch {}
-      }, 200)
-    }, { once: true })
+    const child = spawnWithCleanup(command, args, { cwd, env }, signal)
 
-    
     child.stdin.write(prompt)
     child.stdin.end()
 
