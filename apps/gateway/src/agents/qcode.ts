@@ -132,6 +132,23 @@ function streamProcess(
           } else if (event.type === "error" && event.message) {
             logAgentChunk("Qcode", { type: "error", content: event.message })
             onChunkWithLock({ type: "error", content: event.message })
+          } else if (event.type === "assistant" && event.message) {
+            const msg = event.message
+            if (msg.delta) {
+              if (msg.delta.text) {
+                logAgentText(msg.delta.text)
+                onChunkWithLock({ type: "text", content: msg.delta.text })
+              }
+              if (msg.delta.thinking) {
+                onChunkWithLock({ type: "thinking", content: msg.delta.thinking })
+                const now = Date.now()
+                if (now - lastThinkingLogTime > 2000) {
+                  lastThinkingLogTime = now
+                  logAgentChunk("Qcode", { type: "status", content: "思考中..." })
+                  onChunkWithLock({ type: "status", content: "思考中..." })
+                }
+              }
+            }
           }
         } catch {
           logAgentText(trimmed + "\n")
@@ -192,6 +209,9 @@ export const qcodeAdapter: AgentAdapter = {
     if (!args.includes("--output-format")) {
       args.push("--output-format", "stream-json")
     }
+    if (!args.includes("--include-partial-messages")) {
+      args.push("--include-partial-messages")
+    }
 
     if (request.sessionId && sessionStore) {
       const existing = await sessionStore.get(request.sessionId)
@@ -217,7 +237,7 @@ export const qcodeAdapter: AgentAdapter = {
       } else if (request.permissionMode === "auto") {
         args.push("--permission-mode", "auto")
       } else if (request.permissionMode === "full") {
-        args.push("--permission-mode", "bypass_permissions")
+        args.push("--dangerously-skip-permissions")
       }
     }
 
@@ -225,7 +245,7 @@ export const qcodeAdapter: AgentAdapter = {
       await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
     } catch (err: any) {
       const isResume = args.includes("--resume")
-      const isSessionNotFoundError = err.message.includes("No conversation found")
+      const isSessionNotFoundError = err.message.includes("No conversation found") || err.message.includes("Invalid session identifier")
       
       if (isResume && isSessionNotFoundError) {
         console.warn(`[Qcode] Session ${request.sessionId} not found on disk. Falling back to init mode.`)
