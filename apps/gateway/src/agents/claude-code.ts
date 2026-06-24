@@ -39,6 +39,35 @@ function streamProcess(
     let stdoutBuffer = ""
     let textBuffer = ""
     let lastThinkingLogTime = 0
+    let lastActionStatusTime = 0
+
+    const isActionContent = (content: string): boolean => {
+      return content.includes("正在修改") || 
+             content.includes("正在阅读") || 
+             content.includes("正在执行") || 
+             content.includes("正在搜索") || 
+             content.includes("正在使用工具")
+    }
+
+    const onChunkWithLock = (chunk: any) => {
+      if (chunk.type === "status") {
+        if (isActionContent(chunk.content)) {
+          lastActionStatusTime = Date.now()
+          onChunk(chunk)
+        } else if (chunk.content === "思考中...") {
+          const elapsed = Date.now() - lastActionStatusTime
+          if (elapsed < 1500) {
+            return
+          }
+          onChunk(chunk)
+        } else {
+          onChunk(chunk)
+        }
+      } else {
+        onChunk(chunk)
+      }
+    }
+
     const logAgentText = (text: string) => {
       textBuffer += text
       const lines = textBuffer.split("\n")
@@ -82,33 +111,34 @@ function streamProcess(
                     statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
                   }
                   logAgentChunk("Claude Code", { type: "status", content: statusText })
-                  onChunk({ type: "status", content: statusText })
+                  onChunkWithLock({ type: "status", content: statusText })
                 }
               }
               if (innerEvent.type === "content_block_delta" && innerEvent.delta) {
                 if (innerEvent.delta.type === "text_delta" && innerEvent.delta.text) {
                   logAgentText(innerEvent.delta.text)
-                  onChunk({ type: "text", content: innerEvent.delta.text })
+                  onChunkWithLock({ type: "text", content: innerEvent.delta.text })
                 } else if (innerEvent.delta.type === "thinking_delta" && innerEvent.delta.thinking) {
+                  onChunkWithLock({ type: "thinking", content: innerEvent.delta.thinking })
                   const now = Date.now()
                   if (now - lastThinkingLogTime > 2000) {
                     lastThinkingLogTime = now
                     logAgentChunk("Claude Code", { type: "status", content: "思考中..." })
-                    onChunk({ type: "status", content: "思考中..." })
+                    onChunkWithLock({ type: "status", content: "思考中..." })
                   }
                 }
               }
             }
           } else if (event.type === "progress" && event.content) {
             logAgentChunk("Claude Code", { type: "status", content: event.content })
-            onChunk({ type: "status", content: event.content })
+            onChunkWithLock({ type: "status", content: event.content })
           } else if (event.type === "error" && event.message) {
             logAgentChunk("Claude Code", { type: "error", content: event.message })
-            onChunk({ type: "error", content: event.message })
+            onChunkWithLock({ type: "error", content: event.message })
           }
         } catch {
           logAgentText(trimmed + "\n")
-          onChunk({ type: "text", content: trimmed + "\n" })
+          onChunkWithLock({ type: "text", content: trimmed + "\n" })
         }
       }
     })

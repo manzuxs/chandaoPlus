@@ -140,6 +140,52 @@ function CopyHtmlButton({ markdown, label }: { markdown: string; label: string }
   )
 }
 
+function ThinkingBox({ text }: { text: string }) {
+  const [collapsed, setCollapsed] = useState(true)
+
+  if (!text) return null
+
+  return (
+    <div className="thinking-box" style={{
+      marginBottom: "var(--space-sm)",
+      borderLeft: "2px solid var(--hairline)",
+      paddingLeft: "var(--space-sm)",
+      fontSize: "12px",
+      color: "var(--ink-soft)"
+    }}>
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          background: "none",
+          border: "none",
+          padding: 0,
+          color: "var(--ink-soft)",
+          cursor: "pointer",
+          fontSize: "12px",
+          fontWeight: "var(--weight-bold)",
+          textDecoration: "underline"
+        }}
+      >
+        <span>{collapsed ? "▶" : "▼"} AI 思考过程</span>
+      </button>
+      {!collapsed && (
+        <div style={{
+          marginTop: "4px",
+          whiteSpace: "pre-wrap",
+          opacity: 0.8,
+          lineHeight: "1.5"
+        }}>
+          {text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ChatThread({ messages, skills = [], onSelectSkill, sending = false }: ChatThreadProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -176,7 +222,7 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sending = fal
       ) : (
         messages.map((msg, index) => {
           const isGenerating = sending && msg.role === "assistant" && index === messages.length - 1
-          const isThinking = isGenerating && !msg.content
+          const isThinking = isGenerating && !msg.content && !msg.thinking
 
           return (
             <div key={index} className={`message-row ${msg.role}`}>
@@ -195,17 +241,22 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sending = fal
                 </div>
               ) : (
                 <div className="message-block">
-                  <div className={`message-bubble ${msg.role} ${isGenerating ? "generating" : ""}`}>
-                    {msg.role === "assistant" ? (
-                      <div
-                        className="message-content"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                      />
-                    ) : (
-                      <div className="message-content">{msg.content}</div>
-                    )}
-                  </div>
-                  {msg.role === "assistant" && (
+                  {msg.role === "assistant" && msg.thinking && (
+                    <ThinkingBox text={msg.thinking} />
+                  )}
+                  {(msg.content || msg.role !== "assistant") && (
+                    <div className={`message-bubble ${msg.role} ${isGenerating ? "generating" : ""}`}>
+                      {msg.role === "assistant" ? (
+                        <div
+                          className="message-content"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        />
+                      ) : (
+                        <div className="message-content">{msg.content}</div>
+                      )}
+                    </div>
+                  )}
+                  {msg.role === "assistant" && msg.content && (
                     <div className="message-actions">
                       <CopyButton text={msg.content} label="MD" />
                       <CopyHtmlButton markdown={msg.content} label="HTML" />

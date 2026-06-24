@@ -44,7 +44,8 @@ export const PageCaptureSchema = z.object({
 
 export const ChatMessageSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
-  content: z.string().min(1)
+  content: z.string(),
+  thinking: z.string().optional()
 })
 
 export const SessionSchema = z.object({

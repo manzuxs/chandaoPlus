@@ -848,6 +848,25 @@ export function useChatSession(workspaceId: string) {
                     statusText: chunk.content
                   }
                 }))
+              } else if (chunk.type === "thinking") {
+                assistantMsg.thinking = (assistantMsg.thinking || "") + chunk.content
+                setSessionStates((prev) => {
+                  const state = prev[currentKey] || { messages: [], sending: true, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }
+                  const nextMessages = [...state.messages]
+                  if (!isAssistantMsgAdded) {
+                    nextMessages.push(assistantMsg)
+                    isAssistantMsgAdded = true
+                  } else {
+                    nextMessages[nextMessages.length - 1] = { ...assistantMsg }
+                  }
+                  return {
+                    ...prev,
+                    [currentKey]: {
+                      ...state,
+                      messages: nextMessages
+                    }
+                  }
+                })
               } else if (chunk.type === "text") {
                 assistantMsg.content += chunk.content
                 setSessionStates((prev) => {
