@@ -256,8 +256,22 @@ export const opencodeAdapter: AgentAdapter = {
     if (request.effort) {
       args.push("--variant", request.effort)
     }
+    const cleanEnv: Record<string, string> = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value === undefined) continue
+      if (
+        key.startsWith("npm_") ||
+        key.startsWith("PNPM_") ||
+        key === "INIT_CWD" ||
+        key === "PROJECT_CWD"
+      ) {
+        continue
+      }
+      cleanEnv[key] = value
+    }
+
     const env = {
-      ...process.env,
+      ...cleanEnv,
       HTTP_TIMEOUT: "600000",
       API_TIMEOUT: "600000",
       TIMEOUT: "600000",
