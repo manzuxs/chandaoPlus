@@ -14,7 +14,8 @@ function streamProcess(
   cwd: string,
   prompt: string,
   onChunk: (chunk: any) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  permissionMode?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -38,6 +39,14 @@ function streamProcess(
     let lastThinkingLogTime = 0
     let lastActionStatusTime = 0
 
+    const outputHistory: string[] = []
+    const logToHistory = (line: string) => {
+      outputHistory.push(line)
+      if (outputHistory.length > 50) {
+        outputHistory.shift()
+      }
+    }
+
     const isActionContent = (content: string): boolean => {
       return content.includes("正在修改") || 
              content.includes("正在阅读") || 
@@ -51,6 +60,7 @@ function streamProcess(
         if (isActionContent(chunk.content)) {
           lastActionStatusTime = Date.now()
           onChunk(chunk)
+          logToHistory(`[状态] ${chunk.content}`)
         } else if (chunk.content === "思考中...") {
           const elapsed = Date.now() - lastActionStatusTime
           if (elapsed < 1500) {
@@ -59,7 +69,11 @@ function streamProcess(
           onChunk(chunk)
         } else {
           onChunk(chunk)
+          logToHistory(`[状态] ${chunk.content}`)
         }
+      } else if (chunk.type === "text") {
+        onChunk(chunk)
+        logToHistory(chunk.content)
       } else {
         onChunk(chunk)
       }
@@ -145,6 +159,7 @@ function streamProcess(
       const text = chunk.toString()
       stderrBuffer += text
       console.error(`[Claude Code Stderr] ${text.trim()}`)
+      logToHistory(`[Stderr] ${text.trim()}`)
     })
 
     child.on("close", (code) => {
@@ -156,7 +171,16 @@ function streamProcess(
       } else if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`Process exited with code ${code}. Stderr: ${stderrBuffer}`))
+        let errMsg = `Process exited with code ${code}.`
+        if (stderrBuffer.trim()) {
+          errMsg += ` Stderr: ${stderrBuffer}`
+        } else if (outputHistory.length > 0) {
+          errMsg += ` Last outputs:\n${outputHistory.slice(-8).join("\n")}`
+        }
+        if (permissionMode !== "full") {
+          errMsg += `\n提示：当前处于‘受限访问’模式，Agent 渠道（Claude Code）在执行敏感操作（如文件修改或命令执行）时由于无法在后台进行交互式权限确认，可能会直接退出。如果遇到此问题，请在侧边栏或悬浮窗开启‘完全访问’。`
+        }
+        reject(new Error(errMsg))
       }
     })
 
@@ -228,7 +252,7 @@ export const claudeCodeAdapter: AgentAdapter = {
     }
 
     try {
-      await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal)
+      await streamProcess(bin, args, workspace.rootPath, prompt, onChunk, signal, request.permissionMode)
     } catch (err: any) {
       const isResume = args.includes("--resume")
       const isSessionNotFoundError = err.message.includes("No conversation found")
@@ -244,7 +268,7 @@ export const claudeCodeAdapter: AgentAdapter = {
             fallbackArgs.push(args[i])
           }
         }
-        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, onChunk, signal)
+        await streamProcess(bin, fallbackArgs, workspace.rootPath, prompt, onChunk, signal, request.permissionMode)
       } else {
         throw err
       }

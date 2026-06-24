@@ -23,9 +23,10 @@ function streamProcessOpencode(
   args: string[],
   cwd: string,
   prompt: string,
-  env: Record<string, string | undefined>,
+  env: Record<string, string>,
   onChunk: (chunk: any) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  permissionMode?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -38,12 +39,21 @@ function streamProcessOpencode(
     let textChunks = 0
     const eventCounts: Record<string, number> = {}
     let textBuffer = ""
+    const outputHistory: string[] = []
+    const logToHistory = (line: string) => {
+      outputHistory.push(line)
+      if (outputHistory.length > 50) {
+        outputHistory.shift()
+      }
+    }
+
     const logAgentText = (text: string) => {
       textBuffer += text
       const lines = textBuffer.split("\n")
       textBuffer = lines.pop() || ""
       for (const line of lines) {
         logAgentChunk("OpenCode", { type: "text", content: line })
+        logToHistory(line)
       }
     }
     const child = spawnWithCleanup(command, args, { cwd, env }, signal)
@@ -78,6 +88,7 @@ function streamProcessOpencode(
           if (startCount === 1) {
             logAgentChunk("OpenCode", { type: "status", content: "开始运行..." })
             onChunk({ type: "status", content: "开始运行..." })
+            logToHistory("[状态] 开始运行...")
           }
         } else if (event.part?.type === "tool" && event.part?.tool) {
           const toolName = event.part.tool
@@ -103,10 +114,12 @@ function streamProcessOpencode(
           console.log(`[OpenCode event] ${event.type} 会话：${event.sessionID || "无"}，事件：${statusText}`)
           logAgentChunk("OpenCode", { type: "status", content: statusText })
           onChunk({ type: "status", content: statusText })
+          logToHistory(`[状态] ${statusText}`)
         } else if (event.type === "error") {
           const msg = event.error?.message || event.error?.data?.message || "Unknown error"
           logAgentChunk("OpenCode", { type: "error", content: msg })
           onChunk({ type: "error", content: msg })
+          logToHistory(`[错误] ${msg}`)
         } else {
           const reasonText = event.part?.reason ? ` (${event.part.reason})` : ""
           console.log(`[OpenCode event] ${event.type} 会话：${event.sessionID || "无"}，事件：${event.type}${reasonText}`)
@@ -139,6 +152,7 @@ function streamProcessOpencode(
       lastActivityAt = Date.now()
       stderrBuffer += text
       console.error(`[OpenCode Stderr] ${text.trim()}`)
+      logToHistory(`[Stderr] ${text.trim()}`)
     })
  
     child.on("close", (code) => {
@@ -156,7 +170,16 @@ function streamProcessOpencode(
       } else if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`OpenCode process exited with code ${code}. Stderr: ${stderrBuffer}`))
+        let errMsg = `OpenCode process exited with code ${code}.`
+        if (stderrBuffer.trim()) {
+          errMsg += ` Stderr: ${stderrBuffer}`
+        } else if (outputHistory.length > 0) {
+          errMsg += ` Last outputs:\n${outputHistory.slice(-8).join("\n")}`
+        }
+        if (permissionMode !== "full") {
+          errMsg += `\n提示：当前处于‘受限访问’模式，Agent 渠道（OpenCode）在执行敏感操作（如文件修改或命令执行）时由于无法在后台进行交互式权限确认，可能会直接退出。如果遇到此问题，请在侧边栏或悬浮窗开启‘完全访问’。`
+        }
+        reject(new Error(errMsg))
       }
     })
  
@@ -242,6 +265,6 @@ export const opencodeAdapter: AgentAdapter = {
       CLAUDE_API_TIMEOUT: "600000"
     }
 
-    await streamProcessOpencode(bin, args, workspace.rootPath, prompt, env, onChunk, signal)
+    await streamProcessOpencode(bin, args, workspace.rootPath, prompt, env, onChunk, signal, request.permissionMode)
   }
 }

@@ -15,7 +15,8 @@ function streamProcessCodex(
   prompt: string,
   onChunk: (chunk: any) => void,
   onThreadStarted: (threadId: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  permissionMode?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -36,12 +37,22 @@ function streamProcessCodex(
 
     let stdoutBuffer = ""
     let textBuffer = ""
+
+    const outputHistory: string[] = []
+    const logToHistory = (line: string) => {
+      outputHistory.push(line)
+      if (outputHistory.length > 50) {
+        outputHistory.shift()
+      }
+    }
+
     const logAgentText = (text: string) => {
       textBuffer += text
       const lines = textBuffer.split("\n")
       textBuffer = lines.pop() || ""
       for (const line of lines) {
         logAgentChunk("Codex", { type: "text", content: line })
+        logToHistory(line)
       }
     }
     child.stdout.on("data", (chunk) => {
@@ -113,23 +124,26 @@ function streamProcessCodex(
                   const targetCmd = typeof rawCmd === "string" ? rawCmd.trim() : ""
 
                   let statusText = `正在使用工具: ${toolName}...`
-                  if (toolName.includes("write") || toolName.includes("edit") || toolName.includes("replace") || toolName.includes("patch")) {
+                  if (toolName === "edit") {
                     statusText = targetPath ? `正在修改文件: ${targetPath}...` : "正在修改代码..."
-                  } else if (toolName.includes("read") || toolName.includes("view") || toolName.includes("show")) {
+                  } else if (toolName === "read") {
                     statusText = targetPath ? `正在阅读文件: ${targetPath}...` : "正在阅读文件..."
-                  } else if (toolName.includes("bash") || toolName.includes("execute") || toolName.includes("run") || toolName.includes("cmd")) {
+                  } else if (toolName === "bash") {
                     statusText = targetCmd ? `正在执行命令: ${targetCmd}...` : "正在执行终端命令..."
-                  } else if (toolName.includes("glob") || toolName.includes("find") || toolName.includes("search")) {
+                  } else if (toolName === "glob") {
                     statusText = targetPath ? `正在搜索目录: ${targetPath}...` : "正在搜索文件..."
                   }
+                  
                   logAgentChunk("Codex", { type: "status", content: statusText })
                   onChunk({ type: "status", content: statusText })
+                  logToHistory(`[状态] ${statusText}`)
                 }
               }
             }
           } else if (event.type === "error" && event.message) {
             logAgentChunk("Codex", { type: "error", content: event.message })
             onChunk({ type: "error", content: event.message })
+            logToHistory(`[错误] ${event.message}`)
           } else if (event.type === "turn.failed" && event.error?.message) {
             logAgentChunk("Codex", { type: "error", content: event.error.message })
             onChunk({ type: "error", content: event.error.message })
@@ -142,7 +156,9 @@ function streamProcessCodex(
     })
 
     child.stderr.on("data", (chunk) => {
-      console.error(`[Codex Stderr] ${chunk.toString().trim()}`)
+      const text = chunk.toString().trim()
+      console.error(`[Codex Stderr] ${text}`)
+      logToHistory(`[Stderr] ${text}`)
     })
 
     child.on("close", (code) => {
@@ -154,7 +170,14 @@ function streamProcessCodex(
       } else if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`Codex process exited with code ${code}`))
+        let errMsg = `Codex process exited with code ${code}.`
+        if (outputHistory.length > 0) {
+          errMsg += ` Last outputs:\n${outputHistory.slice(-8).join("\n")}`
+        }
+        if (permissionMode !== "full") {
+          errMsg += `\n提示：当前处于‘受限访问’模式，Agent 渠道（Codex）在执行敏感操作（如文件修改或命令执行）时由于无法在后台进行交互式权限确认，可能会直接退出。如果遇到此问题，请在侧边栏或悬浮窗开启‘完全访问’。`
+        }
+        reject(new Error(errMsg))
       }
     })
 
@@ -222,7 +245,8 @@ export const codexAdapter: AgentAdapter = {
           })
         }
       },
-      signal
+      signal,
+      request.permissionMode
     )
   }
 }
