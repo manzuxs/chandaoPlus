@@ -19,7 +19,7 @@ const FORBIDDEN_PREFIXES = [
  * Validate that a workspace rootPath is a safe directory for agent execution.
  * Rejects home directory, root-level paths, and system directories.
  */
-export function validateWorkspaceRoot(rootPath: string): { valid: true } | { valid: false; reason: string } {
+export function validateWorkspaceRoot(rootPath: string): { valid: boolean; reason?: string } {
   if (!path.isAbsolute(rootPath)) {
     return { valid: false, reason: "工作区路径必须是绝对路径" }
   }
