@@ -140,45 +140,32 @@ function CopyHtmlButton({ markdown, label }: { markdown: string; label: string }
   )
 }
 
-function ThinkingBox({ text }: { text: string }) {
+function ThinkingBox({ text, isGenerating = false }: { text: string; isGenerating?: boolean }) {
   const [collapsed, setCollapsed] = useState(true)
 
   if (!text) return null
 
   return (
-    <div className="thinking-box" style={{
-      marginBottom: "var(--space-sm)",
-      borderLeft: "2px solid var(--hairline)",
-      paddingLeft: "var(--space-sm)",
-      fontSize: "12px",
-      color: "var(--ink-soft)"
-    }}>
-      <button
-        type="button"
+    <div className="thinking-container">
+      <div 
+        className="thinking-header" 
         onClick={() => setCollapsed(!collapsed)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "4px",
-          background: "none",
-          border: "none",
-          padding: 0,
-          color: "var(--ink-soft)",
-          cursor: "pointer",
-          fontSize: "12px",
-          fontWeight: "var(--weight-bold)",
-          textDecoration: "underline"
-        }}
       >
-        <span>{collapsed ? "▶" : "▼"} AI 思考过程</span>
-      </button>
+        <div className="thinking-header-left">
+          {isGenerating ? (
+            <div className="thinking-dots" style={{ marginRight: "4px" }}>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          ) : (
+            <span style={{ fontSize: "10px", color: "var(--ink)", opacity: 0.4 }}>●</span>
+          )}
+          <span className="thinking-header-title">思考中...</span>
+        </div>
+      </div>
       {!collapsed && (
-        <div style={{
-          marginTop: "4px",
-          whiteSpace: "pre-wrap",
-          opacity: 0.8,
-          lineHeight: "1.5"
-        }}>
+        <div className="thinking-content">
           {text}
         </div>
       )}
@@ -241,16 +228,18 @@ export function ChatThread({ messages, skills = [], onSelectSkill, sending = fal
                 </div>
               ) : (
                 <div className="message-block">
-                  {msg.role === "assistant" && msg.thinking && (
-                    <ThinkingBox text={msg.thinking} />
-                  )}
-                  {(msg.content || msg.role !== "assistant") && (
+                  {(msg.content || msg.role !== "assistant" || (isGenerating && msg.thinking)) && (
                     <div className={`message-bubble ${msg.role} ${isGenerating ? "generating" : ""}`}>
+                      {msg.role === "assistant" && isGenerating && msg.thinking && (
+                        <ThinkingBox text={msg.thinking} isGenerating={isGenerating} />
+                      )}
                       {msg.role === "assistant" ? (
-                        <div
-                          className="message-content"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                        />
+                        msg.content && (
+                          <div
+                            className="message-content"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                          />
+                        )
                       ) : (
                         <div className="message-content">{msg.content}</div>
                       )}

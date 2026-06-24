@@ -20,6 +20,8 @@ interface SessionRecord {
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   permissionMode?: "ask" | "auto" | "full" | "custom";
   lockedPage?: PageCapture;
+  summary?: string;
+  _lastSummarizedMessageCount?: number;
 }
 
 export class SessionStore {
@@ -221,6 +223,20 @@ export class SessionStore {
       if (!record) throw new Error(`Session ${sessionId} not found`);
       record.opencodeSessionId = opencodeSessionId;
       record.updatedAt = new Date().toISOString();
+      await this.writeAll(records);
+    });
+  }
+
+  async updateSummary(sessionId: string, summary: string, messageCount?: number): Promise<void> {
+    return this.withLock(async () => {
+      const records = await this.readAll();
+      const record = records.find((r) => r.id === sessionId);
+      if (!record) throw new Error(`Session ${sessionId} not found`);
+      record.summary = summary;
+      if (messageCount !== undefined) {
+        record._lastSummarizedMessageCount = messageCount;
+      }
+      // Don't update updatedAt — this is a background operation, not user interaction
       await this.writeAll(records);
     });
   }

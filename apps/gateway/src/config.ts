@@ -25,3 +25,8 @@ export const WORKSPACE_STORE_PATH =
 export const SKILL_STORE_PATH =
   process.env.SKILL_STORE_PATH ||
   path.join(os.homedir(), ".chandaoplus", "skills.json")
+
+// Conversation history windowing for context bundle
+export const CONVERSATION_MAX_MESSAGES = Number(process.env.CONVERSATION_MAX_MESSAGES || 50)
+export const CONVERSATION_MAX_MESSAGE_CHARS = Number(process.env.CONVERSATION_MAX_MESSAGE_CHARS || 16000)
+export const SUMMARIZE_THRESHOLD = Number(process.env.SUMMARIZE_THRESHOLD || 20)

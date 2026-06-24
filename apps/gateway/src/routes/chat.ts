@@ -2,7 +2,8 @@ import { Router } from "express"
 import crypto from "node:crypto"
 import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
-import { CODEX_BIN, OPENCODE_BIN } from "../config"
+import { generateSummary } from "../services/summarizer"
+import { CODEX_BIN, OPENCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
 
 type TaskStatus = "running" | "completed" | "error" | "stopped"
 
@@ -27,6 +28,11 @@ function writeSse(res: any, chunk: any) {
 export function registerChatRoutes(app: any, deps: any) {
   const router = Router()
   const tasks = deps.chatTaskStore || new Map<string, ChatTask>()
+
+  // Prevent duplicate summarization for the same session
+  const summarizeInProgress = new Set<string>()
+  // Only re-summarize when at least this many new messages have accumulated
+  const SUMMARIZE_MIN_INTERVAL = 5
 
   const emitTaskEvent = (task: ChatTask, chunk: any) => {
     const seq = task.events.length
@@ -99,6 +105,35 @@ export function registerChatRoutes(app: any, deps: any) {
     })
   }
 
+  const maybeSummarizeSession = async (sessionStore: any, sessionId: string, workspaceRoot: string) => {
+    if (summarizeInProgress.has(sessionId)) return
+    try {
+      const session = await sessionStore.get(sessionId)
+      if (!session) return
+      const messages: ChatMessage[] = session.messages || []
+      if (messages.length < SUMMARIZE_THRESHOLD) return
+
+      const previousSummary: string | undefined = session.summary
+      const lastSummaryIdx: number = (session as any)._lastSummarizedMessageCount ?? 0
+      if (previousSummary && (messages.length - lastSummaryIdx) < SUMMARIZE_MIN_INTERVAL) return
+
+      summarizeInProgress.add(sessionId)
+      const result = await generateSummary({
+        messages,
+        previousSummary,
+        workspaceRoot,
+      })
+
+      if (result) {
+        await sessionStore.updateSummary(sessionId, result, messages.length)
+      }
+    } catch (err: any) {
+      console.error("Failed to summarize session:", err.message)
+    } finally {
+      summarizeInProgress.delete(sessionId)
+    }
+  }
+
   const startTask = async (task: ChatTask, params: {
     request: any
     workspace: any
@@ -130,6 +165,10 @@ export function registerChatRoutes(app: any, deps: any) {
       const finalStatus: TaskStatus = task.stopRequested || task.abortController.signal.aborted ? "stopped" : "completed"
       emitTaskEvent(task, { type: "done", content: finalStatus === "stopped" ? "已停止" : "" })
       await finishTask(task, finalStatus)
+
+      if (finalStatus === "completed") {
+        maybeSummarizeSession(deps.sessionStore, task.sessionId, params.workspace.rootPath)
+      }
     } catch (err: any) {
       console.error("Agent process execution error:", err)
       emitTaskEvent(task, { type: "error", content: err.message })
@@ -149,6 +188,7 @@ export function registerChatRoutes(app: any, deps: any) {
       // 处理 session：复用或创建
       let sessionId = request.sessionId
       let conversationMessages: ChatMessage[] = []
+      let sessionSummary: string | undefined
       if (sessionId) {
         const existing = await deps.sessionStore.get(sessionId)
         if (!existing || existing.workspaceId !== request.workspaceId) {
@@ -160,6 +200,7 @@ export function registerChatRoutes(app: any, deps: any) {
           return
         }
         conversationMessages = [...(existing.messages || [])]
+        sessionSummary = existing.summary
         // 续问时同步更新配置参数到 SessionStore
         await deps.sessionStore.updateConfig(sessionId, {
           agent: request.agent,
@@ -187,7 +228,7 @@ export function registerChatRoutes(app: any, deps: any) {
       }
       const confirmedSessionId = sessionId!
 
-      const bundleDir = await writeContextBundle(workspace.rootPath, confirmedSessionId, request.page, conversationMessages)
+      const bundleDir = await writeContextBundle(workspace.rootPath, confirmedSessionId, request.page, conversationMessages, sessionSummary)
       await deps.sessionStore.addContextBundleDir(confirmedSessionId, bundleDir)
 
       const isLockedPage = request.page && request.page.metadata && 

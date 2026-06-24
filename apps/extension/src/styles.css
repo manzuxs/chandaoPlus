@@ -2272,3 +2272,80 @@ button {
   color: var(--canvas);
   box-shadow: 0 0 8px rgba(30, 166, 74, 0.4);
 }
+
+/* === Thinking Box (Figma design style) === */
+.thinking-container {
+  margin-bottom: var(--space-sm);
+  border-radius: var(--radius-md);
+  border: var(--space-hair) solid var(--hairline);
+  background-color: var(--surface-soft);
+  overflow: hidden;
+  transition: border-color var(--transition-base), background-color var(--transition-base);
+}
+
+.thinking-container:hover {
+  border-color: var(--ink);
+  background-color: var(--hairline-soft);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.thinking-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.thinking-header-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: var(--weight-body-medium);
+  color: var(--ink);
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+}
+
+.thinking-content {
+  padding: 10px 12px;
+  border-top: var(--space-hair) solid var(--hairline);
+  background-color: var(--canvas);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  opacity: 0.85;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* Embedded ThinkingBox inside message bubbles */
+.message-bubble.assistant .thinking-container {
+  border: none;
+  background-color: transparent;
+  margin-bottom: var(--space-xs);
+  border-radius: 0;
+}
+
+.message-bubble.assistant .thinking-container:hover {
+  background-color: transparent;
+}
+
+.message-bubble.assistant .thinking-header {
+  padding: 0 0 var(--space-xs) 0;
+}
+
+.message-bubble.assistant .thinking-content {
+  border: var(--space-hair) solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background-color: var(--canvas);
+  margin-bottom: var(--space-xs);
+  padding: 8px 10px;
+  max-height: 240px;
+}

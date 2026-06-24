@@ -23,7 +23,8 @@ describe("POST /api/chat/stream", () => {
         appendMessage: async (sid: string, msg: any) => { messages.push(msg) },
         updateTitle: async () => {},
         addContextBundleDir: async () => {},
-        updateCodexThreadId: async () => {}
+        updateCodexThreadId: async () => {},
+        updateSummary: async () => {}
       },
       agentRegistry: {
         get: () => ({

@@ -128,4 +128,30 @@ describe("SessionStore", () => {
     expect(cleared!.runningTaskId).toBeUndefined()
     expect(cleared!.runningStatus).toBeUndefined()
   })
+
+  it("updates summary on a session", async () => {
+    const session = await store.create("ws-1", "摘要测试")
+    await store.appendMessage(session.id, { role: "user", content: "测试消息" })
+
+    await store.updateSummary(session.id, "核心任务：修复登录页。已修改 auth.ts。")
+
+    const updated = await store.get(session.id)
+    expect((updated as any).summary).toBe("核心任务：修复登录页。已修改 auth.ts。")
+  })
+
+  it("throws when updating summary for non-existent session", async () => {
+    await expect(
+      store.updateSummary("nonexistent-id", "summary")
+    ).rejects.toThrow("Session nonexistent-id not found")
+  })
+
+  it("persists summary across store instances", async () => {
+    const session = await store.create("ws-1", "持久化测试")
+    await store.updateSummary(session.id, "跨实例摘要", 10)
+
+    const store2 = new SessionStore(join(tmpDir, "sessions.json"))
+    const reloaded = await store2.get(session.id)
+    expect((reloaded as any).summary).toBe("跨实例摘要")
+    expect((reloaded as any)._lastSummarizedMessageCount).toBe(10)
+  })
 })

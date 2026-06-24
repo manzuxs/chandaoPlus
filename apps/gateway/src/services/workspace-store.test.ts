@@ -54,4 +54,32 @@ describe("WorkspaceStore", () => {
     expect(conversation).toContain("## 2. Assistant")
     expect(conversation).toContain("结论是 token 过期处理异常")
   })
+
+  it("includes summary in conversation.md when provided", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "chandaoplus-"))
+    const workspaceRoot = join(baseDir, "project-a")
+
+    const bundleDir = await writeContextBundle(
+      workspaceRoot,
+      "session-3",
+      {
+        url: "https://zentao.local/bug-view-3.html",
+        title: "BUG #3",
+        markdown: "# BUG #3",
+        images: [],
+        metadata: {}
+      },
+      [
+        { role: "user", content: "修复登录问题" },
+        { role: "assistant", content: "已修复 token 刷新逻辑" }
+      ],
+      "核心任务：修复登录页 token 刷新问题。已修改 auth.ts。"
+    )
+
+    const conversation = await readFile(join(bundleDir, "conversation.md"), "utf8")
+    expect(conversation).toContain("# 会话摘要")
+    expect(conversation).toContain("核心任务：修复登录页 token 刷新问题")
+    expect(conversation).toContain("# 会话历史")
+    expect(conversation).toContain("## 1. User")
+  })
 })
