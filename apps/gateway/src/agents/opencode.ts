@@ -230,8 +230,14 @@ export const opencodeAdapter: AgentAdapter = {
     if (request.effort) {
       args.push("--variant", request.effort)
     }
-
-    const env = { ...process.env }
+    const env = {
+      ...process.env,
+      HTTP_TIMEOUT: "600000",
+      API_TIMEOUT: "600000",
+      TIMEOUT: "600000",
+      GEMINI_API_TIMEOUT: "600000",
+      CLAUDE_API_TIMEOUT: "600000"
+    }
 
     await streamProcessOpencode(bin, args, workspace.rootPath, prompt, env, onChunk, signal)
   }
