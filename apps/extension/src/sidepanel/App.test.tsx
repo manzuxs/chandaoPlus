@@ -1274,9 +1274,8 @@ describe("App", () => {
     // 打开卡片菜单
     const modelSelector = screen.getByTitle("思考强度")
     
-    // 等待初始化完成，默认会渲染成触发器文字，包含 "推理：" 和 "中"
+    // 等待初始化完成，默认会渲染成触发器文字，包含 "中"
     await waitFor(() => {
-      expect(modelSelector.textContent).toContain("推理：")
       expect(modelSelector.textContent).toContain("中")
     })
     
@@ -1294,9 +1293,8 @@ describe("App", () => {
     // 点击 "超高" 选项以更改思考强度
     fireEvent.click(screen.getByText("超高"))
     
-    // 触发器应该更新为，包含 "推理：" 和 "超高"
+    // 触发器应该更新为，包含 "超高"
     await waitFor(() => {
-      expect(modelSelector.textContent).toContain("推理：")
       expect(modelSelector.textContent).toContain("超高")
     })
   })

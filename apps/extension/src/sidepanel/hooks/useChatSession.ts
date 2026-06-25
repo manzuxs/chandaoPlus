@@ -25,7 +25,7 @@ type SessionState = {
   statusText: string
   agent?: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
   model?: string
-  effort?: "low" | "medium" | "high" | "xhigh" | "max"
+  effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto"
   permissionMode?: "ask" | "auto" | "full" | "custom"
   worktreeMode?: boolean
   lockedPage?: PageCapture
@@ -550,7 +550,7 @@ export function useChatSession(workspaceId: string) {
   const setSessionConfig = useCallback((config: {
     agent?: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
     model?: string
-    effort?: "low" | "medium" | "high" | "xhigh" | "max"
+    effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto"
     permissionMode?: "ask" | "auto" | "full" | "custom"
     worktreeMode?: boolean
   }) => {

@@ -168,7 +168,7 @@ export function App() {
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [input, setInput] = useState("")
 
-  const [agentSettings, setAgentSettings] = useState<Record<string, { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" }>>(() => {
+  const [agentSettings, setAgentSettings] = useState<Record<string, { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto" }>>(() => {
     try {
       const saved = localStorage.getItem("chandaoplus_agent_settings")
       if (saved) {
@@ -186,7 +186,7 @@ export function App() {
     }
   })
 
-  const updateAgentSettings = (targetAgent: string, config: { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" }) => {
+  const updateAgentSettings = (targetAgent: string, config: { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto" }) => {
     setAgentSettings((prev) => {
       const next = {
         ...prev,
@@ -541,10 +541,22 @@ export function App() {
     }
 
     const saved = agentSettings[a] || { model: "default", effort: "medium" }
+    const effortOptions = getAgentEffortOptions(a)
+    let effortVal = saved.effort || "medium"
+
+    if (effortOptions.length === 0) {
+      effortVal = "medium"
+    } else {
+      const isValid = effortOptions.some(o => o.value === effortVal || (o.value === "xhigh" && effortVal === "max") || (o.value === "max" && effortVal === "xhigh"))
+      if (!isValid) {
+        effortVal = effortOptions[0].value as any
+      }
+    }
+
     setSessionConfig({
       agent: a,
       model: saved.model || "default",
-      effort: saved.effort || "medium"
+      effort: effortVal
     })
   }
 
@@ -1025,7 +1037,7 @@ export function App() {
                     {permissionMode === "full" ? <AlertCircleIcon /> : <ShieldIcon />}
                   </span>
                   <span className="control-label">
-                    {permissionMode === "full" ? "完全访问" : "受限访问"}
+                    {permissionMode === "full" ? "完全" : "受限"}
                   </span>
                 </div>
               </div>
@@ -1056,9 +1068,6 @@ export function App() {
                       <path d="M18 9a9 9 0 01-9 9" />
                     </svg>
                   </span>
-                  <span className="control-label">
-                    {worktreeMode ? "Worktree 开" : "Worktree 关"}
-                  </span>
                 </div>
               </div>
             </div>
@@ -1067,8 +1076,13 @@ export function App() {
               {/* 思考强度选择器 */}
               <div className="model-selector">
                 <div
-                  className={`model-selector-trigger ${modelMenuOpen ? "open" : ""}`}
+                  className={`model-selector-trigger ${modelMenuOpen ? "open" : ""} ${agent === "antigravity" ? "disabled" : ""}`}
+                  style={{
+                    opacity: agent === "antigravity" ? 0.5 : 1,
+                    cursor: agent === "antigravity" ? "not-allowed" : "pointer"
+                  }}
                   onClick={(e) => {
+                    if (agent === "antigravity") return
                     e.stopPropagation()
                     setModelMenuOpen(!modelMenuOpen)
                     setAgentMenuOpen(false)
@@ -1076,8 +1090,9 @@ export function App() {
                   }}
                   role="button"
                   tabIndex={0}
-                  title="思考强度"
+                  title={agent === "antigravity" ? "当前 Agent 不支持推理级别" : "思考强度"}
                   onKeyDown={(e) => {
+                    if (agent === "antigravity") return
                     if (e.key === "Enter" || e.key === " ") {
                       setModelMenuOpen(!modelMenuOpen)
                       setAgentMenuOpen(false)
@@ -1086,34 +1101,40 @@ export function App() {
                   }}
                 >
                   <span>
-                    <span className="control-label">推理：</span>
-                    {effort === "low" && "低"}
-                    {effort === "medium" && "中"}
-                    {effort === "high" && "高"}
-                    {(effort === "xhigh" || effort === "max") && "超高"}
+                    {agent === "antigravity" ? "无" : (
+                      <>
+                        {effort === "low" && "低"}
+                        {effort === "medium" && "中"}
+                        {effort === "high" && "高"}
+                        {effort === "xhigh" && "超高"}
+                        {effort === "max" && "最大"}
+                        {effort === "auto" && "自动"}
+                      </>
+                    )}
                   </span>
-                  <ChevronDownIcon />
+                  {agent !== "antigravity" && <ChevronDownIcon />}
                 </div>
-                {modelMenuOpen && (
+                {modelMenuOpen && agent !== "antigravity" && (
                   <div className="model-menu">
                     <div className="model-menu-section reasoning-section">
                       <div className="model-menu-header">推理</div>
-                      <div className={`model-option ${effort === "low" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "low" }); updateAgentSettings(agent, { effort: "low" }); setModelMenuOpen(false); }}>
-                        <span>低</span>
-                        {effort === "low" && <span className="item-check"><CheckIcon /></span>}
-                      </div>
-                      <div className={`model-option ${effort === "medium" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "medium" }); updateAgentSettings(agent, { effort: "medium" }); setModelMenuOpen(false); }}>
-                        <span>中</span>
-                        {effort === "medium" && <span className="item-check"><CheckIcon /></span>}
-                      </div>
-                      <div className={`model-option ${effort === "high" ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "high" }); updateAgentSettings(agent, { effort: "high" }); setModelMenuOpen(false); }}>
-                        <span>高</span>
-                        {effort === "high" && <span className="item-check"><CheckIcon /></span>}
-                      </div>
-                      <div className={`model-option ${(effort === "xhigh" || effort === "max") ? "active" : ""}`} onClick={() => { setSessionConfig({ effort: "xhigh" }); updateAgentSettings(agent, { effort: "xhigh" }); setModelMenuOpen(false); }}>
-                        <span>超高</span>
-                        {(effort === "xhigh" || effort === "max") && <span className="item-check"><CheckIcon /></span>}
-                      </div>
+                      {getAgentEffortOptions(agent).map((opt) => {
+                        const isActive = effort === opt.value
+                        return (
+                          <div
+                            key={opt.value}
+                            className={`model-option ${isActive ? "active" : ""}`}
+                            onClick={() => {
+                              setSessionConfig({ effort: opt.value as any });
+                              updateAgentSettings(agent, { effort: opt.value as any });
+                              setModelMenuOpen(false);
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isActive && <span className="item-check"><CheckIcon /></span>}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -1400,6 +1421,42 @@ export function App() {
       )}
     </div>
   )
+}
+
+const getAgentEffortOptions = (agentName: string) => {
+  if (agentName === "claude-code") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" },
+      { value: "xhigh", label: "超高" },
+      { value: "max", label: "最大" },
+      { value: "auto", label: "自动" }
+    ]
+  }
+  if (agentName === "codex") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" }
+    ]
+  }
+  if (agentName === "opencode") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" },
+      { value: "max", label: "超高" }
+    ]
+  }
+  if (agentName === "qcode") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" }
+    ]
+  }
+  return [] // antigravity
 }
 
 export default App

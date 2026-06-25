@@ -17,7 +17,7 @@ interface SessionRecord {
   opencodeSessionId?: string;
   agent?: AgentKind;
   model?: string;
-  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto";
   permissionMode?: "ask" | "auto" | "full" | "custom";
   worktreeMode?: boolean;
   worktreeDirName?: string;
@@ -60,7 +60,7 @@ export class SessionStore {
     config?: {
       agent?: AgentKind;
       model?: string;
-      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto";
       permissionMode?: "ask" | "auto" | "full" | "custom";
       worktreeMode?: boolean;
     }
@@ -201,7 +201,7 @@ export class SessionStore {
     config: {
       agent?: AgentKind;
       model?: string;
-      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto";
       permissionMode?: "ask" | "auto" | "full" | "custom";
       worktreeMode?: boolean;
       worktreeDirName?: string;

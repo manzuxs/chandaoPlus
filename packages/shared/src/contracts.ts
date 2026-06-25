@@ -59,7 +59,7 @@ export const SessionSchema = z.object({
   runningStatus: z.enum(["running", "stopping"]).optional(),
   agent: AgentKindSchema.optional(),
   model: z.string().optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).optional(),
   permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
   worktreeMode: z.boolean().optional(),
   summary: z.string().optional(),
@@ -89,7 +89,7 @@ export const ChatRequestSchema = z.object({
   page: PageCaptureSchema,
   messages: z.array(ChatMessageSchema).min(1),
   model: z.string().optional(),
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max", "auto"]).optional(),
   permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
   worktreeMode: z.boolean().optional(),
 })

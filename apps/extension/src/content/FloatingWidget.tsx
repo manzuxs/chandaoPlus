@@ -115,7 +115,7 @@ export function FloatingWidget() {
       setAgentId(savedAgent)
       const agentCfg = s.agentSettings[savedAgent] || {}
       setSelectedModel(agentCfg.model || "default")
-      setSelectedEffort(agentCfg.effort || "medium")
+      setSelectedEffort(validateAndGetEffort(savedAgent, agentCfg.effort))
       setSelectedPermission(agentCfg.permissionMode || "full")
       setWorktreeMode(agentCfg.worktreeMode || false)
     })
@@ -140,7 +140,7 @@ export function FloatingWidget() {
           setAgentId(savedAgent)
           const agentCfg = s.agentSettings[savedAgent] || {}
           setSelectedModel(agentCfg.model || "default")
-          setSelectedEffort(agentCfg.effort || "medium")
+          setSelectedEffort(validateAndGetEffort(savedAgent, agentCfg.effort))
           setSelectedPermission(agentCfg.permissionMode || "full")
           setWorktreeMode(agentCfg.worktreeMode || false)
         })
@@ -201,7 +201,7 @@ export function FloatingWidget() {
     const s = await getSettings()
     const agentCfg = s.agentSettings[val] || {}
     setSelectedModel(agentCfg.model || "default")
-    setSelectedEffort(agentCfg.effort || "medium")
+    setSelectedEffort(validateAndGetEffort(val, agentCfg.effort))
     setSelectedPermission(agentCfg.permissionMode || "full")
     setWorktreeMode(agentCfg.worktreeMode || false)
   }
@@ -486,15 +486,21 @@ export function FloatingWidget() {
 
               <div className="fw-field">
                 <label>推理级别</label>
-                <select value={selectedEffort} onChange={async (e) => {
-                  const val = e.target.value
-                  setSelectedEffort(val)
-                  await updateAgentSettingsInStorage(agentId, { effort: val })
-                }}>
-                  <option value="low">低</option>
-                  <option value="medium">中</option>
-                  <option value="high">高</option>
-                </select>
+                {agentId === "antigravity" ? (
+                  <select disabled value="none">
+                    <option value="none">不支持</option>
+                  </select>
+                ) : (
+                  <select value={selectedEffort} onChange={async (e) => {
+                    const val = e.target.value
+                    setSelectedEffort(val)
+                    await updateAgentSettingsInStorage(agentId, { effort: val })
+                  }}>
+                    {getAgentEffortOptions(agentId).map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -547,4 +553,49 @@ export function FloatingWidget() {
       )}
     </div>
   )
+}
+
+const getAgentEffortOptions = (agentName: string) => {
+  if (agentName === "claude-code") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" },
+      { value: "xhigh", label: "超高" },
+      { value: "max", label: "最大" },
+      { value: "auto", label: "自动" }
+    ]
+  }
+  if (agentName === "codex") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" }
+    ]
+  }
+  if (agentName === "opencode") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" },
+      { value: "max", label: "超高" }
+    ]
+  }
+  if (agentName === "qcode") {
+    return [
+      { value: "low", label: "低" },
+      { value: "medium", label: "中" },
+      { value: "high", label: "高" }
+    ]
+  }
+  return [] // antigravity
+}
+
+const validateAndGetEffort = (agentName: string, effortVal?: string) => {
+  const options = getAgentEffortOptions(agentName)
+  if (options.length === 0) return "medium"
+  const target = effortVal || "medium"
+  const isValid = options.some(o => o.value === target || (o.value === "xhigh" && target === "max") || (o.value === "max" && target === "xhigh"))
+  if (isValid) return target
+  return options[0].value
 }
