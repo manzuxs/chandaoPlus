@@ -16,6 +16,15 @@ const MinimizeIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12" /></svg>
 )
 
+const PluginIcon = () => (
+  <svg viewBox="0 0 128 128" style={{ width: "22px", height: "22px" }} aria-hidden="true">
+    <rect width="128" height="128" rx="24" fill="#000000"/>
+    <text x="64" y="86" textAnchor="middle" fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" fontSize="72" fontWeight="700" fill="white">C</text>
+    <circle cx="104" cy="104" r="16" fill="white"/>
+    <text x="104" y="114" textAnchor="middle" fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" fontSize="16" fontWeight="900" fill="#000000">+</text>
+  </svg>
+)
+
 export function FloatingWidget() {
   const [collapsed, setCollapsed] = useState(true)
   const [skills, setSkills] = useState<Skill[]>([])
@@ -37,6 +46,67 @@ export function FloatingWidget() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  // 拖拽相关状态与事件监听
+  const [position, setPosition] = useState({ right: 24, bottom: 24 })
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef<{ mouseX: number; mouseY: number; right: number; bottom: number } | null>(null)
+  const hasDraggedRef = useRef(false)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragStartRef.current) return
+    
+    const deltaX = dragStartRef.current.mouseX - e.clientX
+    const deltaY = dragStartRef.current.mouseY - e.clientY
+    
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasDraggedRef.current = true
+    }
+    
+    let newRight = dragStartRef.current.right + deltaX
+    let newBottom = dragStartRef.current.bottom + deltaY
+    
+    // 边界检测限制，防止滑出视口
+    const maxRight = window.innerWidth - 60
+    const maxBottom = window.innerHeight - 60
+    
+    if (newRight < 10) newRight = 10
+    if (newRight > maxRight) newRight = maxRight
+    if (newBottom < 10) newBottom = 10
+    if (newBottom > maxBottom) newBottom = maxBottom
+    
+    setPosition({ right: newRight, bottom: newBottom })
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    dragStartRef.current = null
+    setIsDragging(false)
+    document.removeEventListener("mousemove", handleMouseMove)
+    document.removeEventListener("mouseup", handleMouseUp)
+  }, [handleMouseMove])
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return // 只允许鼠标左键拖动
+    
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      right: position.right,
+      bottom: position.bottom
+    }
+    hasDraggedRef.current = false
+    setIsDragging(true)
+    
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
+  }
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [handleMouseMove, handleMouseUp])
 
   // 0. 监听全局 storage 更改实现双向同步
   useEffect(() => {
@@ -288,20 +358,46 @@ export function FloatingWidget() {
 
   if (collapsed) {
     return (
-      <button className="floating-toggle" onClick={() => setCollapsed(false)} title="打开 chandaoPlus 任务添加器">
-        <BugIcon />
+      <button
+        className="floating-toggle"
+        style={{
+          right: `${position.right}px`,
+          bottom: `${position.bottom}px`,
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none",
+          msUserSelect: "none",
+          WebkitUserSelect: "none"
+        }}
+        onMouseDown={handleMouseDown}
+        onClick={(e) => {
+          if (hasDraggedRef.current) {
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          setCollapsed(false)
+        }}
+        title="打开 chandaoPlus 任务添加器"
+      >
+        <PluginIcon />
         {checkedCount > 0 && <span className="badge">{checkedCount}</span>}
       </button>
     )
   }
 
   return (
-    <div className="floating-widget">
+    <div
+      className="floating-widget"
+      style={{
+        right: `${position.right}px`,
+        bottom: `${position.bottom}px`
+      }}
+    >
       {/* Header */}
       <div className="fw-header">
-        <div className="fw-header-left">
-          <BugIcon />
-          <span>chandaoPlus 任务添加器</span>
+        <div className="fw-header-left" style={{ display: "flex", alignItems: "center" }}>
+          <PluginIcon />
+          <span style={{ marginLeft: "8px" }}>chandaoPlus 任务添加器</span>
         </div>
         <div className="fw-header-right">
           <button className="fw-header-btn" onClick={() => setCollapsed(true)} title="最小化">

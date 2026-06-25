@@ -73,7 +73,8 @@
   bottom: 24px;
   right: 24px;
   width: 380px;
-  height: 530px;
+  height: auto;
+  max-height: calc(100vh - 48px);
   border-radius: 12px;
   background: #ffffff;
   border: 1px solid #e6e6e6; /* Hairline */
