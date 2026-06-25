@@ -2413,3 +2413,53 @@ button {
   }
 }
 
+/* Paste Screenshot Preview */
+.input-screenshot-container {
+  display: flex;
+  margin-bottom: var(--space-xxs);
+}
+
+.input-screenshot-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.input-screenshot-preview {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: var(--space-hair) solid var(--hairline);
+  background-color: var(--surface);
+}
+
+.screenshot-close-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+
+.screenshot-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.screenshot-close-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+

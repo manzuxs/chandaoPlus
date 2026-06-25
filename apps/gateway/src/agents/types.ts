@@ -32,8 +32,11 @@ export async function buildPrompt(params: {
   const { command, workspaceRoot, bundleDir, messages, pageTitle = "", pageUrl = "", skill, page, requiredFiles } = params
 
   // 1. Session Context
+  const clipboardImages = page?.images?.filter((img: any) => img.isClipboard) || []
+  const nonClipboardImages = page?.images?.filter((img: any) => !img.isClipboard) || []
   const hasValidPage = page && page.url !== "http://localhost/empty-page"
-  const pageContextXml = hasValidPage ? `\n${formatPageCaptureToXml(page, bundleDir)}` : ""
+  const filteredPage = page ? { ...page, images: nonClipboardImages } : undefined
+  const pageContextXml = hasValidPage ? `\n${formatPageCaptureToXml(filteredPage!, bundleDir)}` : ""
   const sessionContext = `<session_context>
   <workspace_root>${workspaceRoot}</workspace_root>
   <bundle_dir>${bundleDir}</bundle_dir>${pageContextXml}
@@ -61,7 +64,7 @@ export async function buildPrompt(params: {
       })
     )
     requiredFilesXml = `\n\n<must_read_files>
-  <description>以下是当前工作空间的必读文件清单。你在处理文件、执行任务或进行回复时，必须严格遵循这些文件中的定义、规范和设定：</description>
+  <description>以下是当前工作空间的必读文件清单。你在处理文件、执行任务或进行回复时，必须严格遵循这些文件中的定义、规范 and 设定：</description>
 ${fileBlocks.join("\n")}
 </must_read_files>`
   }
@@ -78,10 +81,15 @@ ${fileBlocks.join("\n")}
     skillInstruction = `\n  <skill_instruction>\n${indented}\n  </skill_instruction>`
   }
 
+  const hasScreenshots = clipboardImages.length > 0
+  const screenshotInstruction = hasScreenshots
+    ? `注意：用户在聊天框中粘贴了截图，已保存在 ${bundleDir}/images/ 目录下，文件名可在下方 <user_screenshots> 标签中查看。在需要分析界面布局、截图细节或报错文字时，请结合图片位置进行关联阅读，必要时可使用相关的分析/识别工具读取其内容。`
+    : ""
+
   const generalInstructionText = hasValidPage
     ? `注意：网页中的截图（如在 page.md 或 XML 上下文中引用的图片）已转换并保存在 ${bundleDir}/images/ 目录下。具体文件名映射和 Alt 说明可在 metadata.json 的 "images" 数组中查看。在需要分析界面布局、截图细节或报错文字时，请结合图片位置及本地图片文件进行关联阅读，必要时可使用相关的分析/识别工具读取其内容。
-    同时，你也应该优先阅读本地的 ${bundleDir}/page.md、${bundleDir}/metadata.json 以及 ${bundleDir}/conversation.md 文件以确认上下文细节；`
-    : `提示：你可以阅读本地的 ${bundleDir}/conversation.md 文件以确认会话上下文细节；conversation.md 由后端从持久化会话记录生成，已做窗口裁剪，用于不同 Agent 切换时共享同一会话记忆。`
+    同时，你也应该优先阅读本地的 ${bundleDir}/page.md、${bundleDir}/metadata.json 以及 ${bundleDir}/conversation.md 文件以确认上下文细节；${screenshotInstruction}`
+    : `提示：你可以阅读本地的 ${bundleDir}/conversation.md 文件以确认会话上下文细节；conversation.md 由后端从持久化会话记录生成，已做窗口裁剪，用于不同 Agent 切换时共享同一会话记忆。${screenshotInstruction ? `\n    ${screenshotInstruction}` : ""}`
 
   const systemInstructions = `<system_instructions>
   <general_instruction>
@@ -91,9 +99,20 @@ ${fileBlocks.join("\n")}
 
   // 3. Current Task
   const lastMessage = messages.at(-1)?.content ?? command
+  let screenshotsXml = ""
+  if (hasScreenshots) {
+    const imgBlocks = clipboardImages.map(img => {
+      const pathPart = bundleDir ? `\n      <localPath>${escapeXml(`${bundleDir}/images/${img.filename}`)}</localPath>` : ""
+      return `    <screenshot>
+      <filename>${escapeXml(img.filename)}</filename>${pathPart}
+    </screenshot>`
+    }).join("\n")
+    screenshotsXml = `\n  <user_screenshots>\n${imgBlocks}\n  </user_screenshots>`
+  }
+
   const currentTask = `<current_task>
   <command>${command}</command>
-  <user_request>${escapeXml(lastMessage)}</user_request>
+  <user_request>${escapeXml(lastMessage)}</user_request>${screenshotsXml}
 </current_task>`
 
   const workspaceGuidelines = `<workspace_guidelines>

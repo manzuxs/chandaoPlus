@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture, SessionListItem } from "@chandaoplus/shared"
+import type { WorkspaceProfile, ChatMessage, ChatCommand, Skill, PageCapture, SessionListItem, PageImage } from "@chandaoplus/shared"
 import { captureActiveTabPage } from "../../lib/page-capture"
 import { extractZentaoBugDetailPageCapture, extractZentaoTaskDetailPageCapture } from "../../recipes/zendao-detail"
 import { hydrateImageAssets } from "@chandaoplus/extractor"
@@ -641,6 +641,7 @@ export function useChatSession(workspaceId: string) {
     customTempSessionKey?: string
     skipSetSessionId?: boolean
     worktreeMode?: boolean
+    clipboardImage?: PageImage
   }) => {
     let activeId = params.targetSessionId !== undefined ? params.targetSessionId : sessionId
     const tempKey = params.customTempSessionKey || tempSessionKey
@@ -738,6 +739,13 @@ export function useChatSession(workspaceId: string) {
           return idStr
         }
         finalStatusText = `使用已锁定 ${getLabel(lockedBugId)} 上下文`
+      }
+
+      if (params.clipboardImage) {
+        pageCapture = {
+          ...pageCapture,
+          images: [...(pageCapture.images || []), params.clipboardImage]
+        }
       }
 
       setSessionStates((prev) => {

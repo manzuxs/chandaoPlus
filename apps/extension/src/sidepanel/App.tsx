@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
-import type { ChatCommand, SessionListItem, Skill } from "@chandaoplus/shared"
+import type { ChatCommand, SessionListItem, Skill, PageImage } from "@chandaoplus/shared"
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher"
 import { ChatThread } from "./components/ChatThread"
 import { SkillManager } from "./components/SkillManager"
@@ -167,6 +167,7 @@ export function App() {
   const [agentModelMenuOpen, setAgentModelMenuOpen] = useState(false)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [input, setInput] = useState("")
+  const [clipboardImage, setClipboardImage] = useState<(PageImage & { dataUrl?: string }) | null>(null)
 
   const [agentSettings, setAgentSettings] = useState<Record<string, { model?: string; effort?: "low" | "medium" | "high" | "xhigh" | "max" | "auto" }>>(() => {
     try {
@@ -628,6 +629,34 @@ export function App() {
     )
   }
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData.items
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            if (event.target?.result && typeof event.target.result === "string") {
+              setClipboardImage({
+                filename: `clipboard_${Date.now()}.png`,
+                alt: "clipboard screenshot",
+                mimeType: file.type,
+                sourceUrl: "http://localhost/clipboard",
+                base64Data: event.target.result.split(",")[1],
+                dataUrl: event.target.result
+              })
+            }
+          }
+          reader.readAsDataURL(file)
+          e.preventDefault()
+          break
+        }
+      }
+    }
+  }, [])
+
   const filteredCommands = getFilteredCommands()
   const showSlashMenu = input.startsWith("/") && filteredCommands.length > 0
   const selectedSkill = command && command !== "default" ? skills.find((s) => s.id === command) : null
@@ -805,6 +834,22 @@ export function App() {
               </button>
             </div>
           )}
+          {clipboardImage && (
+            <div className="input-screenshot-container">
+              <div className="input-screenshot-wrapper">
+                <img src={clipboardImage.dataUrl} alt="pasted screenshot" className="input-screenshot-preview" />
+                <button
+                  type="button"
+                  className="screenshot-close-btn"
+                  onClick={() => setClipboardImage(null)}
+                  title="删除截图"
+                  aria-label="删除截图"
+                >
+                  <XIcon />
+                </button>
+              </div>
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={input}
@@ -814,20 +859,24 @@ export function App() {
               setAgentModelMenuOpen(false)
             }}
             onChange={(e) => handleInputChange(e.target.value)}
+            onPaste={handlePaste}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 const hasInput = input.trim()
                 const hasSkill = command && command !== "default"
-                if (workspaceId && !sending && (hasInput || hasSkill)) {
+                const hasImage = !!clipboardImage
+                if (workspaceId && !sending && (hasInput || hasSkill || hasImage)) {
                   send({
                     workspaceId,
                     agent,
                     command,
-                    input
+                    input,
+                    clipboardImage: clipboardImage || undefined
                   })
                   setInput("")
                   setCommand("default")
+                  setClipboardImage(null)
                 }
               }
             }}
@@ -1155,16 +1204,18 @@ export function App() {
                   type="button"
                   className="btn-send"
                   aria-label="发送"
-                  disabled={!workspaceId || sending}
+                  disabled={!workspaceId || sending || (!input.trim() && command === "default" && !clipboardImage)}
                   onClick={() => {
                     send({
                       workspaceId,
                       agent,
                       command,
-                      input
+                      input,
+                      clipboardImage: clipboardImage || undefined
                     })
                     setInput("")
                     setCommand("default")
+                    setClipboardImage(null)
                   }}
                 >
                   <SendIcon />

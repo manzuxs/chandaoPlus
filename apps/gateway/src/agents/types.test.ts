@@ -177,4 +177,35 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("[注意] 你的当前工作空间在 /ws/some_project。")
     expect(prompt).toContain("</workspace_reminder>")
   })
+
+  it("includes clipboard screenshots in current_task and adds screenshot instructions", async () => {
+    const prompt = await buildPrompt({
+      command: "default",
+      workspaceRoot: "/ws/some_project",
+      bundleDir: "/tmp/bundle",
+      messages: [{ role: "user", content: "这里有个截图" }],
+      page: {
+        url: "http://localhost/empty-page",
+        title: "无技能上下文",
+        markdown: "当前对话未开启特定技能，未捕获页面内容。",
+        images: [
+          {
+            filename: "clipboard_12345.png",
+            alt: "clipboard screenshot",
+            mimeType: "image/png",
+            sourceUrl: "http://localhost/clipboard",
+            base64Data: "xyz",
+            isClipboard: true
+          }
+        ],
+        metadata: {}
+      }
+    })
+
+    expect(prompt).not.toContain("<page_context>")
+    expect(prompt).toContain("<user_screenshots>")
+    expect(prompt).toContain("<filename>clipboard_12345.png</filename>")
+    expect(prompt).toContain("<localPath>/tmp/bundle/images/clipboard_12345.png</localPath>")
+    expect(prompt).toContain("用户在聊天框中粘贴了截图，已保存在 /tmp/bundle/images/ 目录下")
+  })
 })

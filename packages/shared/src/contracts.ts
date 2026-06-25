@@ -31,7 +31,8 @@ export const PageImageSchema = z.object({
   alt: z.string().default(""),
   mimeType: z.string().min(1),
   sourceUrl: z.string().url(),
-  base64Data: z.string() // Allow base64Data to be empty initially
+  base64Data: z.string(), // Allow base64Data to be empty initially
+  isClipboard: z.boolean().optional()
 })
 
 export const PageCaptureSchema = z.object({
