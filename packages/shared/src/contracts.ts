@@ -61,6 +61,7 @@ export const SessionSchema = z.object({
   model: z.string().optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
+  worktreeMode: z.boolean().optional(),
   summary: z.string().optional(),
 })
 
@@ -90,6 +91,7 @@ export const ChatRequestSchema = z.object({
   model: z.string().optional(),
   effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
   permissionMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
+  worktreeMode: z.boolean().optional(),
 })
 
 export const ChatStreamChunkSchema = z.object({

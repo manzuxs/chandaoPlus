@@ -27,6 +27,7 @@ type SessionState = {
   model?: string
   effort?: "low" | "medium" | "high" | "xhigh" | "max"
   permissionMode?: "ask" | "auto" | "full" | "custom"
+  worktreeMode?: boolean
   lockedPage?: PageCapture
   runningTaskId?: string
 }
@@ -92,7 +93,7 @@ export function useChatSession(workspaceId: string) {
           setSessionStates((prev) => ({
             ...prev,
             [id]: {
-              ...(prev[id] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full" }),
+              ...(prev[id] || { messages: [], sending: false, statusText: "", agent: undefined, model: "default", effort: "medium", permissionMode: "full", worktreeMode: false }),
               messages: session.messages,
               runningTaskId: session.runningTaskId
             }
@@ -329,6 +330,7 @@ export function useChatSession(workspaceId: string) {
                     model: prev[stored]?.model || session.model || "default",
                     effort: prev[stored]?.effort || session.effort || "medium",
                     permissionMode: prev[stored]?.permissionMode || session.permissionMode || "full",
+                    worktreeMode: prev[stored]?.worktreeMode ?? session.worktreeMode ?? false,
                     lockedPage: session.lockedPage || prev[stored]?.lockedPage,
                     runningTaskId: session.runningTaskId
                   }
@@ -550,6 +552,7 @@ export function useChatSession(workspaceId: string) {
     model?: string
     effort?: "low" | "medium" | "high" | "xhigh" | "max"
     permissionMode?: "ask" | "auto" | "full" | "custom"
+    worktreeMode?: boolean
   }) => {
     const key = sessionId || tempSessionKey
     setSessionStates((prev) => {
@@ -603,6 +606,7 @@ export function useChatSession(workspaceId: string) {
             model: prev[id]?.model || session.model || "default",
             effort: prev[id]?.effort || session.effort || "medium",
             permissionMode: prev[id]?.permissionMode || session.permissionMode || "full",
+            worktreeMode: prev[id]?.worktreeMode ?? session.worktreeMode ?? false,
             lockedPage: session.lockedPage || prev[id]?.lockedPage,
             runningTaskId: session.runningTaskId
           }
@@ -762,7 +766,8 @@ export function useChatSession(workspaceId: string) {
         messages: [userMsg],
         model: activeState.model || "default",
         effort: activeState.effort || "medium",
-        permissionMode: activeState.permissionMode || "full"
+        permissionMode: activeState.permissionMode || "full",
+        worktreeMode: activeState.worktreeMode || false
       }
       if (activeId) {
         payload.sessionId = activeId
@@ -1057,6 +1062,7 @@ export function useChatSession(workspaceId: string) {
   const model = activeState.model || "default"
   const effort = activeState.effort || "medium"
   const permissionMode = activeState.permissionMode || "full"
+  const worktreeMode = activeState.worktreeMode || false
 
   const stop = useCallback((id?: string, taskId?: string) => {
     const key = id !== undefined ? id : (sessionId || tempSessionKey)
@@ -1362,6 +1368,7 @@ export function useChatSession(workspaceId: string) {
     model,
     effort,
     permissionMode,
+    worktreeMode,
     setSessionConfig,
     send,
     stop,

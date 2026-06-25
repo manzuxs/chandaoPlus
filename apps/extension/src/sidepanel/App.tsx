@@ -230,7 +230,7 @@ export function App() {
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, deleteSessionsBatch, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, setSessionConfig, sessionStates, triggerBatchSkill, isProcessingQueue } = useChatSession(workspaceId)
+  const { workspaces, skills, messages, sending, statusText, send, stop, addWorkspace, updateWorkspace, deleteWorkspace, deleteSession, deleteSessionsBatch, saveSkill, deleteSkill, newSession, loadSession, sessionId, sessionVersion, agent: sessionAgent, model, effort, permissionMode, worktreeMode, setSessionConfig, sessionStates, triggerBatchSkill, isProcessingQueue } = useChatSession(workspaceId)
 
   const closeHistoryDrawer = useCallback(() => {
     setShowHistoryDrawer(false)
@@ -1026,6 +1026,38 @@ export function App() {
                   </span>
                   <span>
                     {permissionMode === "full" ? "完全访问" : "受限访问"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Worktree 模式开关 */}
+              <div className="permission-selector">
+                <div
+                  className={`permission-selector-trigger ${worktreeMode ? "worktree-active" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSessionConfig({ worktreeMode: !worktreeMode })
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  title={worktreeMode ? "Worktree 模式已开启（任务在独立分支执行，支持并行）" : "Worktree 模式已关闭（所有任务共享工作目录）"}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation()
+                      setSessionConfig({ worktreeMode: !worktreeMode })
+                    }
+                  }}
+                >
+                  <span className="permission-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="6" y1="3" x2="6" y2="15" />
+                      <circle cx="18" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <path d="M18 9a9 9 0 01-9 9" />
+                    </svg>
+                  </span>
+                  <span>
+                    {worktreeMode ? "Worktree 开" : "Worktree 关"}
                   </span>
                 </div>
               </div>

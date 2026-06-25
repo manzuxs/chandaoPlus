@@ -1392,6 +1392,15 @@ button {
   border-color: #f57c00;
 }
 
+.permission-selector-trigger.worktree-active {
+  border-color: #00897b;
+  color: #00897b;
+}
+
+.permission-selector-trigger.worktree-active:hover {
+  border-color: #00695c;
+}
+
 .permission-icon {
   display: inline-flex;
   align-items: center;

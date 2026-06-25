@@ -19,6 +19,8 @@ interface SessionRecord {
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   permissionMode?: "ask" | "auto" | "full" | "custom";
+  worktreeMode?: boolean;
+  worktreeDirName?: string;
   lockedPage?: PageCapture;
   summary?: string;
   _lastSummarizedMessageCount?: number;
@@ -60,6 +62,7 @@ export class SessionStore {
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
+      worktreeMode?: boolean;
     }
   ): Promise<Session> {
     return this.withLock(async () => {
@@ -76,6 +79,7 @@ export class SessionStore {
         model: config?.model,
         effort: config?.effort,
         permissionMode: config?.permissionMode,
+        worktreeMode: config?.worktreeMode,
       };
       records.push(record);
       await this.writeAll(records);
@@ -199,6 +203,8 @@ export class SessionStore {
       model?: string;
       effort?: "low" | "medium" | "high" | "xhigh" | "max";
       permissionMode?: "ask" | "auto" | "full" | "custom";
+      worktreeMode?: boolean;
+      worktreeDirName?: string;
       lockedPage?: PageCapture;
     }
   ): Promise<void> {
@@ -210,6 +216,8 @@ export class SessionStore {
       if (config.model !== undefined) record.model = config.model;
       if (config.effort !== undefined) record.effort = config.effort;
       if (config.permissionMode !== undefined) record.permissionMode = config.permissionMode;
+      if (config.worktreeMode !== undefined) record.worktreeMode = config.worktreeMode;
+      if (config.worktreeDirName !== undefined) record.worktreeDirName = config.worktreeDirName;
       if (config.lockedPage !== undefined) record.lockedPage = config.lockedPage;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);

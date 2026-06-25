@@ -4,6 +4,7 @@ import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { generateSummary } from "../services/summarizer"
 import { validateWorkspaceRoot } from "../services/workspace-validator"
+import { createWorktree, resolveWorktreeCwd, extractTaskLabel } from "../services/worktree-manager"
 import { CODEX_BIN, OPENCODE_BIN, QCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
 
 type TaskStatus = "running" | "completed" | "error" | "stopped"
@@ -146,11 +147,37 @@ export function registerChatRoutes(app: any, deps: any) {
     bundleDir: string
     adapter: any
   }) => {
+    let worktreeInfo: { path: string; branch: string; repoRoot: string; dirName: string } | null = null
     try {
+      // 若启用 worktree 模式，为本次任务创建独立的工作目录
+      let effectiveWorkspace = params.workspace
+      if (params.request.worktreeMode) {
+        try {
+          const taskLabel = extractTaskLabel(params.request.page?.metadata)
+          worktreeInfo = await createWorktree(params.workspace.rootPath, taskLabel, task.sessionId)
+          const worktreeCwd = resolveWorktreeCwd(params.workspace.rootPath, worktreeInfo.repoRoot, worktreeInfo.path)
+          effectiveWorkspace = { ...params.workspace, rootPath: worktreeCwd }
+          console.log(`[WorktreeMode] Task ${task.id} running in worktree: ${worktreeCwd} (branch: ${worktreeInfo.branch})`)
+          emitTaskEvent(task, { type: "status", content: `Worktree 就绪: ${worktreeInfo.dirName} (${worktreeInfo.branch})` })
+          // 持久化 dirName，确保清理时使用一致的目录名
+          try {
+            if (params.request.sessionId) {
+              await deps.sessionStore.updateConfig(params.request.sessionId, { worktreeDirName: worktreeInfo.dirName })
+            }
+          } catch (persistErr: any) {
+            console.error(`[WorktreeMode] Failed to persist worktree dirName:`, persistErr)
+          }
+        } catch (wtErr: any) {
+          console.error(`[WorktreeMode] Failed to create worktree for task ${task.id}:`, wtErr)
+          emitTaskEvent(task, { type: "status", content: `Worktree 创建失败，回退到主目录: ${wtErr.message}` })
+          // 回退到原始路径，不中断任务
+        }
+      }
+
       const skill = await deps.skillStore.get(params.request.command)
       await params.adapter.run({
         request: params.request,
-        workspace: params.workspace,
+        workspace: effectiveWorkspace,
         bundleDir: params.bundleDir,
         skill,
         sessionStore: deps.sessionStore,
@@ -219,7 +246,8 @@ export function registerChatRoutes(app: any, deps: any) {
           agent: request.agent,
           model: request.model,
           effort: request.effort,
-          permissionMode: request.permissionMode
+          permissionMode: request.permissionMode,
+          worktreeMode: request.worktreeMode
         })
       } else {
         // 首问时传入当前配置参数进行持久化
@@ -227,7 +255,8 @@ export function registerChatRoutes(app: any, deps: any) {
           agent: request.agent,
           model: request.model,
           effort: request.effort,
-          permissionMode: request.permissionMode
+          permissionMode: request.permissionMode,
+          worktreeMode: request.worktreeMode
         })
         sessionId = session.id
         request.sessionId = sessionId

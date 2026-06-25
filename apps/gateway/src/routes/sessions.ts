@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { CreateSessionRequestSchema } from "@chandaoplus/shared"
+import { cleanupWorktreesForSession, extractTaskLabel } from "../services/worktree-manager"
 
 export function registerSessionRoutes(app: any, deps: any) {
   const router = Router()
@@ -57,6 +58,22 @@ export function registerSessionRoutes(app: any, deps: any) {
           }
         }
       }
+
+      // 尝试清理对应的 worktree（不依赖 worktreeMode 字段，直接检查目录是否存在）
+      try {
+        const session = await deps.sessionStore.get(sessionId)
+        if (session && deps.workspaceStore) {
+          const workspace = await deps.workspaceStore.get(session.workspaceId)
+          if (workspace) {
+            const lockedPage = (session as any).lockedPage
+            const taskLabel = extractTaskLabel(lockedPage?.metadata)
+            await cleanupWorktreesForSession(workspace.rootPath, taskLabel, sessionId, true, session.worktreeDirName)
+          }
+        }
+      } catch (wtErr: any) {
+        console.error(`[SessionsRoute] Failed to cleanup worktree for session ${sessionId}:`, wtErr)
+      }
+
       await deps.sessionStore.delete(sessionId)
       res.status(204).end()
     } catch (err: any) {
@@ -83,6 +100,23 @@ export function registerSessionRoutes(app: any, deps: any) {
             task.abortController?.abort()
             deps.chatTaskStore.delete(task.id)
           }
+        }
+      }
+
+      // 批量清理对应的 worktree
+      for (const sessionId of ids) {
+        try {
+          const session = await deps.sessionStore.get(sessionId)
+          if (session && deps.workspaceStore) {
+            const workspace = await deps.workspaceStore.get(session.workspaceId)
+            if (workspace) {
+              const lockedPage = (session as any).lockedPage
+              const taskLabel = extractTaskLabel(lockedPage?.metadata)
+              await cleanupWorktreesForSession(workspace.rootPath, taskLabel, sessionId, true, session.worktreeDirName)
+            }
+          }
+        } catch (wtErr: any) {
+          console.error(`[SessionsRoute] Failed to cleanup worktree for session ${sessionId} in batch:`, wtErr)
         }
       }
 
