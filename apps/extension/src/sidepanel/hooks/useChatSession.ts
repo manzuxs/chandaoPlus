@@ -640,6 +640,7 @@ export function useChatSession(workspaceId: string) {
     targetSessionId?: string | null
     customTempSessionKey?: string
     skipSetSessionId?: boolean
+    worktreeMode?: boolean
   }) => {
     let activeId = params.targetSessionId !== undefined ? params.targetSessionId : sessionId
     const tempKey = params.customTempSessionKey || tempSessionKey
@@ -767,7 +768,7 @@ export function useChatSession(workspaceId: string) {
         model: activeState.model || "default",
         effort: activeState.effort || "medium",
         permissionMode: activeState.permissionMode || "full",
-        worktreeMode: activeState.worktreeMode || false
+        worktreeMode: params.worktreeMode !== undefined ? params.worktreeMode : (activeState.worktreeMode || false)
       }
       if (activeId) {
         payload.sessionId = activeId
@@ -1111,6 +1112,7 @@ export function useChatSession(workspaceId: string) {
       model?: string
       effort?: any
       permissionMode?: any
+      worktreeMode?: boolean
       description?: string
     }
   ) => {
@@ -1186,7 +1188,8 @@ export function useChatSession(workspaceId: string) {
               agent: options?.agent || undefined, 
               model: options?.model || "default", 
               effort: options?.effort || "medium", 
-              permissionMode: options?.permissionMode || "full" 
+              permissionMode: options?.permissionMode || "full",
+              worktreeMode: options?.worktreeMode || false
             }
             return {
               ...prev,
@@ -1196,6 +1199,7 @@ export function useChatSession(workspaceId: string) {
                 model: options?.model || state.model,
                 effort: options?.effort || state.effort,
                 permissionMode: options?.permissionMode || state.permissionMode,
+                worktreeMode: options?.worktreeMode !== undefined ? options.worktreeMode : state.worktreeMode,
                 sending: true,
                 statusText: `正在抓取 BUG #${item.id} 详情数据...`
               }
@@ -1322,7 +1326,8 @@ export function useChatSession(workspaceId: string) {
               customPage: pageCapture,
               targetSessionId,
               customTempSessionKey: customTempKey,
-              skipSetSessionId: true // 批量任务在后台并行执行，不要篡改当前聚焦的 sessionId
+              skipSetSessionId: true, // 批量任务在后台并行执行，不要篡改当前聚焦的 sessionId
+              worktreeMode: options?.worktreeMode
             })
             console.log("[useChatSession] send() finished executing for item ID:", item.id)
           } catch (err: any) {

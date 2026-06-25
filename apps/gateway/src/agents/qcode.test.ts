@@ -1,34 +1,13 @@
 import { EventEmitter } from "node:events"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { qcodeAdapter } from "./qcode"
+import { createMockChildProcess } from "./test-helpers"
 
 const spawnMock = vi.hoisted(() => vi.fn())
 
 vi.mock("node:child_process", () => ({
   spawn: spawnMock,
 }))
-
-function createChildProcess(stdoutLines: string[]) {
-  const child = new EventEmitter() as EventEmitter & {
-    stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> }
-    stdout: EventEmitter
-    stderr: EventEmitter
-  }
-
-  child.stdin = {
-    write: vi.fn(),
-    end: vi.fn(),
-  }
-  child.stdout = new EventEmitter()
-  child.stderr = new EventEmitter()
-
-  queueMicrotask(() => {
-    child.stdout.emit("data", stdoutLines.join("\n") + "\n")
-    child.emit("close", 0)
-  })
-
-  return child
-}
 
 describe("qcodeAdapter", () => {
   beforeEach(() => {
@@ -37,21 +16,21 @@ describe("qcodeAdapter", () => {
 
   it("streams text content from stream_event text_delta events", async () => {
     spawnMock.mockImplementation(() =>
-      createChildProcess([
-        JSON.stringify({
-          type: "stream_event",
-          event: {
-            type: "content_block_delta",
-            delta: { type: "text_delta", text: "Hello from Qcode" }
-          }
-        }),
-      ])
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({
+            type: "stream_event",
+            event: {
+              type: "content_block_delta",
+              delta: { type: "text_delta", text: "Hello from Qcode" },
+            },
+          }),
+        ],
+      })
     )
 
     const chunks: any[] = []
-    const sessionStore = {
-      get: vi.fn().mockResolvedValue(null)
-    }
+    const sessionStore = { get: vi.fn().mockResolvedValue(null) }
 
     await qcodeAdapter.run({
       workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "qcode" },
@@ -74,29 +53,29 @@ describe("qcodeAdapter", () => {
 
   it("streams status messages from progress and tool use events", async () => {
     spawnMock.mockImplementation(() =>
-      createChildProcess([
-        JSON.stringify({
-          type: "progress",
-          content: "Indexing workspace..."
-        }),
-        JSON.stringify({
-          type: "stream_event",
-          event: {
-            type: "content_block_start",
-            content_block: {
-              type: "tool_use",
-              name: "view_file",
-              input: { path: "src/index.ts" }
-            }
-          }
-        })
-      ])
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({
+            type: "progress",
+            content: "Indexing workspace..."
+          }),
+          JSON.stringify({
+            type: "stream_event",
+            event: {
+              type: "content_block_start",
+              content_block: {
+                type: "tool_use",
+                name: "read",
+                input: { path: "src/index.ts" },
+              },
+            },
+          }),
+        ],
+      })
     )
 
     const chunks: any[] = []
-    const sessionStore = {
-      get: vi.fn().mockResolvedValue(null)
-    }
+    const sessionStore = { get: vi.fn().mockResolvedValue(null) }
 
     await qcodeAdapter.run({
       workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "qcode" },
@@ -121,22 +100,20 @@ describe("qcodeAdapter", () => {
   it("throws error and does not fallback to claudeCodeAdapter if spawn throws ENOENT", async () => {
     spawnMock.mockImplementation(() => {
       const child = new EventEmitter() as any
-      child.stdin = { write: vi.fn(), end: vi.fn() }
+      child.stdin = { write: vi.fn(), end: vi.fn(), on: vi.fn() }
       child.stdout = new EventEmitter()
       child.stderr = new EventEmitter()
-      
+
       queueMicrotask(() => {
         const err = new Error("spawn qcode ENOENT")
         ;(err as any).code = "ENOENT"
         child.emit("error", err)
       })
+
       return child
     })
 
-    const chunks: any[] = []
-    const sessionStore = {
-      get: vi.fn().mockResolvedValue(null)
-    }
+    const sessionStore = { get: vi.fn().mockResolvedValue(null) }
 
     await expect(
       qcodeAdapter.run({
@@ -152,10 +129,108 @@ describe("qcodeAdapter", () => {
         },
         skill: undefined,
         sessionStore,
-        onChunk: (chunk) => chunks.push(chunk),
+        onChunk: vi.fn(),
       })
     ).rejects.toThrow("ENOENT")
+  })
 
-    expect(chunks).not.toContainEqual({ type: "status", content: "提示：本地未检测到 qcode 命令行工具，已自动降级为 Claude Code 执行..." })
+  it("streams text from qcode-specific assistant delta events", async () => {
+    spawnMock.mockImplementation(() =>
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({
+            type: "assistant",
+            message: {
+              delta: {
+                text: "Qcode assistant response",
+              },
+            },
+          }),
+        ],
+      })
+    )
+
+    const chunks: any[] = []
+    const sessionStore = { get: vi.fn().mockResolvedValue(null) }
+
+    await qcodeAdapter.run({
+      workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "qcode" },
+      bundleDir: "/tmp/bundle",
+      request: {
+        workspaceId: "project-a",
+        agent: "qcode",
+        command: "default",
+        sessionId: "550e8400-e29b-41d4-a716-446655440000",
+        page: { url: "https://example.com", title: "Example", markdown: "# Example", images: [], metadata: {} },
+        messages: [{ role: "user", content: "Hello" }],
+      },
+      skill: undefined,
+      sessionStore,
+      onChunk: (chunk) => chunks.push(chunk),
+    })
+
+    expect(chunks).toContainEqual({ type: "text", content: "Qcode assistant response" })
+  })
+
+  it("falls back from --resume to --session-id when session not found on disk", async () => {
+    // 第一次 spawn：模拟 session 不存在的错误
+    spawnMock.mockImplementationOnce(() => {
+      const child = new EventEmitter() as any
+      child.stdin = { write: vi.fn(), end: vi.fn(), on: vi.fn() }
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      queueMicrotask(() => {
+        child.stderr.emit("data", "No conversation found for session")
+        child.emit("close", 1)
+      })
+      return child
+    })
+    // 第二次 spawn：fallback 成功
+    spawnMock.mockImplementationOnce(() =>
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({
+            type: "stream_event",
+            event: {
+              type: "content_block_delta",
+              delta: { type: "text_delta", text: "Fallback success" },
+            },
+          }),
+        ],
+      })
+    )
+
+    const chunks: any[] = []
+    const sessionStore = {
+      get: vi.fn().mockResolvedValue({
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        messages: [{ role: "user", content: "Prior question" }, { role: "assistant", content: "Prior answer" }],
+      }),
+    }
+
+    await qcodeAdapter.run({
+      workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "qcode" },
+      bundleDir: "/tmp/bundle",
+      request: {
+        workspaceId: "project-a",
+        agent: "qcode",
+        command: "default",
+        sessionId: "550e8400-e29b-41d4-a716-446655440000",
+        page: { url: "https://example.com", title: "Example", markdown: "# Example", images: [], metadata: {} },
+        messages: [{ role: "user", content: "Hello" }],
+      },
+      skill: undefined,
+      sessionStore,
+      onChunk: (chunk) => chunks.push(chunk),
+    })
+
+    // 验证 spawn 被调用了两次（第一次用 --resume 失败，第二次用 --session-id 重试）
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+    const firstCallArgs = spawnMock.mock.calls[0][1]
+    expect(firstCallArgs).toContain("--resume")
+    const secondCallArgs = spawnMock.mock.calls[1][1]
+    expect(secondCallArgs).toContain("--session-id")
+    expect(secondCallArgs).not.toContain("--resume")
+    expect(chunks).toContainEqual({ type: "text", content: "Fallback success" })
   })
 })

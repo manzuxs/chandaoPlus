@@ -2358,3 +2358,58 @@ button {
   padding: 8px 10px;
   max-height: 240px;
 }
+
+/* 响应式底部工具栏优化（支持侧边栏及低分辨率窄屏） */
+.permission-selector-trigger,
+.agent-selector-trigger,
+.agent-model-selector-trigger,
+.model-selector-trigger {
+  white-space: nowrap !important;
+}
+
+/* 默认（宽屏）状态下对长文本也进行防御性截断，防止过长文本撑破布局 */
+.agent-selector-trigger span,
+.agent-model-selector-trigger span,
+.model-selector-trigger span {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@media (max-width: 600px) {
+  /* 隐藏权限和 Worktree 的描述性文本，仅保留图标和状态颜色 */
+  .control-label {
+    display: none !important;
+  }
+  
+  /* 使纯图标按钮布局更紧凑，确保圆形/药丸形状大小合适 */
+  .permission-selector-trigger {
+    padding: var(--space-xs) var(--space-xs) !important;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    box-sizing: border-box;
+    gap: 0 !important;
+  }
+
+  /* 窄屏状态下进一步缩短下拉菜单触发器的最大文字长度 */
+  .agent-selector-trigger span,
+  .agent-model-selector-trigger span,
+  .model-selector-trigger span {
+    max-width: 60px;
+  }
+
+  /* 缩小工具栏元素之间的间距 */
+  .input-toolbar {
+    gap: var(--space-xxs) !important;
+  }
+
+  .input-toolbar-left,
+  .input-toolbar-right {
+    gap: var(--space-xxs) !important;
+  }
+}
+

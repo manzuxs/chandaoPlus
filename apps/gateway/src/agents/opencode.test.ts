@@ -1,6 +1,6 @@
-import { EventEmitter } from "node:events"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { opencodeAdapter } from "./opencode"
+import { createMockChildProcess } from "./test-helpers"
 
 const childProcessMock = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -12,31 +12,6 @@ vi.mock("node:child_process", () => ({
   execSync: childProcessMock.execSync,
 }))
 
-function createOpencodeChild(options: { autoClose?: boolean } = {}) {
-  const child = new EventEmitter() as EventEmitter & {
-    stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> }
-    stdout: EventEmitter
-    stderr: EventEmitter
-    pid?: number
-  }
-
-  child.stdin = {
-    write: vi.fn(),
-    end: vi.fn(),
-  }
-  child.stdout = new EventEmitter()
-  child.stderr = new EventEmitter()
-  child.pid = 12345
-
-  if (options.autoClose !== false) {
-    queueMicrotask(() => {
-      child.emit("close", 0)
-    })
-  }
-
-  return child
-}
-
 describe("opencodeAdapter", () => {
   beforeEach(() => {
     childProcessMock.spawn.mockReset()
@@ -47,7 +22,7 @@ describe("opencodeAdapter", () => {
     childProcessMock.execSync.mockImplementation(() => {
       throw new Error("scutil should not be called")
     })
-    childProcessMock.spawn.mockImplementation(() => createOpencodeChild())
+    childProcessMock.spawn.mockImplementation(() => createMockChildProcess())
 
     await opencodeAdapter.run({
       workspace: { id: "project-a", label: "Project A", rootPath: "/tmp/project-a", defaultAgent: "opencode" },
@@ -76,7 +51,7 @@ describe("opencodeAdapter", () => {
 
   it("parses a final JSON event even when stdout has no trailing newline", async () => {
     childProcessMock.execSync.mockReturnValue(Buffer.from(""))
-    const child = createOpencodeChild({ autoClose: false })
+    const child = createMockChildProcess({ autoClose: false })
     childProcessMock.spawn.mockReturnValue(child)
     const onChunk = vi.fn()
 
@@ -114,7 +89,7 @@ describe("opencodeAdapter", () => {
 
   it("logs unhandled event types so OpenCode activity can be monitored", async () => {
     childProcessMock.execSync.mockReturnValue(Buffer.from(""))
-    const child = createOpencodeChild({ autoClose: false })
+    const child = createMockChildProcess({ autoClose: false })
     childProcessMock.spawn.mockReturnValue(child)
     const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {})
 
@@ -157,7 +132,7 @@ describe("opencodeAdapter", () => {
 
   it("extracts path and command parameters to display user-friendly tool use status", async () => {
     childProcessMock.execSync.mockReturnValue(Buffer.from(""))
-    const child = createOpencodeChild({ autoClose: false })
+    const child = createMockChildProcess({ autoClose: false })
     childProcessMock.spawn.mockReturnValue(child)
     const onChunk = vi.fn()
 

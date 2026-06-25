@@ -1024,7 +1024,7 @@ export function App() {
                   <span className="permission-icon">
                     {permissionMode === "full" ? <AlertCircleIcon /> : <ShieldIcon />}
                   </span>
-                  <span>
+                  <span className="control-label">
                     {permissionMode === "full" ? "完全访问" : "受限访问"}
                   </span>
                 </div>
@@ -1056,7 +1056,7 @@ export function App() {
                       <path d="M18 9a9 9 0 01-9 9" />
                     </svg>
                   </span>
-                  <span>
+                  <span className="control-label">
                     {worktreeMode ? "Worktree 开" : "Worktree 关"}
                   </span>
                 </div>
@@ -1086,7 +1086,7 @@ export function App() {
                   }}
                 >
                   <span>
-                    推理：
+                    <span className="control-label">推理：</span>
                     {effort === "low" && "低"}
                     {effort === "medium" && "中"}
                     {effort === "high" && "高"}

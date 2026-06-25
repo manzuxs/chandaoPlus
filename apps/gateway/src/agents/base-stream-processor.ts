@@ -33,8 +33,8 @@ export abstract class BaseStreamProcessor {
 
   /** 可选钩子：spawn 后、写 stdin 前调用（OpenCode 用于设置心跳） */
   protected onSetup?(_child: ChildProcessWithoutNullStreams): void
-  /** 可选钩子：进程 close/error 后调用（OpenCode 用于拆除心跳） */
-  protected onTeardown?(): void
+  /** 可选钩子：进程 close/error 后调用。code 为退出码，error 时传 null。 */
+  protected onTeardown?(code: number | null): void
 
   /** 日志输出 */
   protected logAgentChunk(chunk: { type: string; content?: string }): void {
@@ -122,10 +122,20 @@ export abstract class BaseStreamProcessor {
       child.stdin.write(prompt)
       child.stdin.end()
 
+      child.stdin.on?.("error", (err: NodeJS.ErrnoException) => {
+        if (err.code !== "EPIPE" && err.code !== "ECANCELED") {
+          console.error(`[${this.opts.agentLabel}] stdin error:`, err.message)
+        }
+      })
+
       const processLine = (line: string) => {
         const trimmed = line.trim()
         if (!trimmed) return
-        this.handleLine(trimmed)
+        try {
+          this.handleLine(trimmed)
+        } catch (err: any) {
+          console.error(`[${this.opts.agentLabel}] handleLine error:`, err.message)
+        }
       }
 
       child.stdout.on("data", (chunk: Buffer) => {
@@ -139,13 +149,15 @@ export abstract class BaseStreamProcessor {
 
       child.stderr.on("data", (chunk: Buffer) => {
         const text = chunk.toString()
-        this.stderrBuffer += text
+        if (this.stderrBuffer.length < 100_000) {
+          this.stderrBuffer += text
+        }
         console.error(`[${this.opts.agentLabel} Stderr] ${text.trim()}`)
         this.addToHistory(`[Stderr] ${text.trim()}`)
       })
 
       child.on("close", (code) => {
-        this.onTeardown?.()
+        this.onTeardown?.(code ?? null)
 
         // 排空残留行（OpenCode 需要）
         if (this.opts.drainStdoutBufferOnClose && this.stdoutBuffer.trim()) {
@@ -167,7 +179,7 @@ export abstract class BaseStreamProcessor {
       })
 
       child.on("error", (err) => {
-        this.onTeardown?.()
+        this.onTeardown?.(null)
         reject(err)
       })
     })

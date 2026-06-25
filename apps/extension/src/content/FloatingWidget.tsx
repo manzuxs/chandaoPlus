@@ -32,6 +32,7 @@ export function FloatingWidget() {
   const [selectedModel, setSelectedModel] = useState<string>("default")
   const [selectedEffort, setSelectedEffort] = useState<string>("medium")
   const [selectedPermission, setSelectedPermission] = useState<string>("full")
+  const [worktreeMode, setWorktreeMode] = useState<boolean>(false)
   const [description, setDescription] = useState("")
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,6 +47,7 @@ export function FloatingWidget() {
       setSelectedModel(agentCfg.model || "default")
       setSelectedEffort(agentCfg.effort || "medium")
       setSelectedPermission(agentCfg.permissionMode || "full")
+      setWorktreeMode(agentCfg.worktreeMode || false)
     })
     return unwatch
   }, [])
@@ -70,6 +72,7 @@ export function FloatingWidget() {
           setSelectedModel(agentCfg.model || "default")
           setSelectedEffort(agentCfg.effort || "medium")
           setSelectedPermission(agentCfg.permissionMode || "full")
+          setWorktreeMode(agentCfg.worktreeMode || false)
         })
       }
     })
@@ -130,6 +133,7 @@ export function FloatingWidget() {
     setSelectedModel(agentCfg.model || "default")
     setSelectedEffort(agentCfg.effort || "medium")
     setSelectedPermission(agentCfg.permissionMode || "full")
+    setWorktreeMode(agentCfg.worktreeMode || false)
   }
 
 
@@ -251,6 +255,7 @@ export function FloatingWidget() {
           model: selectedModel,
           effort: selectedEffort,
           permissionMode: selectedPermission,
+          worktreeMode: worktreeMode,
           description: description
         }
       }
@@ -325,12 +330,24 @@ export function FloatingWidget() {
           <>
             {/* Grid options */}
             <div className="fw-form-grid">
-              <div className="fw-field" style={{ gridColumn: "span 2" }}>
+              <div className="fw-field">
                 <label>工作空间</label>
                 <select value={workspaceId} onChange={(e) => handleWorkspaceChange(e.target.value)}>
                   {workspaces.map((w) => (
                     <option key={w.id} value={w.id}>{w.label}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="fw-field">
+                <label>Worktree 模式</label>
+                <select value={worktreeMode ? "true" : "false"} onChange={async (e) => {
+                  const val = e.target.value === "true"
+                  setWorktreeMode(val)
+                  await updateAgentSettingsInStorage(agentId, { worktreeMode: val })
+                }}>
+                  <option value="true">开启</option>
+                  <option value="false">关闭</option>
                 </select>
               </div>
 

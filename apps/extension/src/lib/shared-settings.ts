@@ -1,7 +1,7 @@
 export interface SharedSettings {
   lastWorkspaceId: string
   lastAgent: "claude-code" | "codex" | "opencode" | "antigravity" | "qcode"
-  agentSettings: Record<string, { model?: string; effort?: string; permissionMode?: string }>
+  agentSettings: Record<string, { model?: string; effort?: string; permissionMode?: string; worktreeMode?: boolean }>
 }
 
 const STORAGE_KEYS = {
@@ -45,7 +45,7 @@ export function watchSettings(callback: (settings: SharedSettings) => void): () 
   return () => chrome.storage.onChanged.removeListener(listener)
 }
 
-export async function updateAgentSettingsInStorage(agent: string, config: { model?: string; effort?: string; permissionMode?: string }) {
+export async function updateAgentSettingsInStorage(agent: string, config: { model?: string; effort?: string; permissionMode?: string; worktreeMode?: boolean }) {
   if (!hasStorage()) return
   const result = await chrome.storage.local.get(STORAGE_KEYS.settings)
   const safeResult = result || {}

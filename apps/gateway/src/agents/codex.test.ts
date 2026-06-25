@@ -1,34 +1,12 @@
-import { EventEmitter } from "node:events"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { codexAdapter } from "./codex"
+import { createMockChildProcess } from "./test-helpers"
 
 const spawnMock = vi.hoisted(() => vi.fn())
 
 vi.mock("node:child_process", () => ({
   spawn: spawnMock,
 }))
-
-function createCodexChild(stdoutLines: string[]) {
-  const child = new EventEmitter() as EventEmitter & {
-    stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> }
-    stdout: EventEmitter
-    stderr: EventEmitter
-  }
-
-  child.stdin = {
-    write: vi.fn(),
-    end: vi.fn(),
-  }
-  child.stdout = new EventEmitter()
-  child.stderr = new EventEmitter()
-
-  queueMicrotask(() => {
-    child.stdout.emit("data", stdoutLines.join("\n") + "\n")
-    child.emit("close", 0)
-  })
-
-  return child
-}
 
 describe("codexAdapter", () => {
   beforeEach(() => {
@@ -37,11 +15,13 @@ describe("codexAdapter", () => {
 
   it("streams agent_message text from Codex item.completed events", async () => {
     spawnMock.mockImplementation(() =>
-      createCodexChild([
-        JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
-        JSON.stringify({ type: "item.completed", item: { id: "item-1", type: "agent_message", text: "OK" } }),
-        JSON.stringify({ type: "turn.completed" }),
-      ])
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+          JSON.stringify({ type: "item.completed", item: { id: "item-1", type: "agent_message", text: "OK" } }),
+          JSON.stringify({ type: "turn.completed" }),
+        ],
+      })
     )
 
     const chunks: any[] = []
@@ -75,26 +55,28 @@ describe("codexAdapter", () => {
 
   it("streams status for command_execution from item.started events", async () => {
     spawnMock.mockImplementation(() =>
-      createCodexChild([
-        JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
-        JSON.stringify({
-          type: "item.started",
-          item: {
-            id: "item_1",
-            type: "command_execution",
-            command: "/bin/zsh -lc \"sed -n '1,220p' /Users/macxm/SKILL.md 2>&1 | head -c 4000\""
-          }
-        }),
-        JSON.stringify({
-          type: "item.started",
-          item: {
-            id: "item_2",
-            type: "command_execution",
-            command: "git apply some_changes.patch"
-          }
-        }),
-        JSON.stringify({ type: "turn.completed" }),
-      ])
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+          JSON.stringify({
+            type: "item.started",
+            item: {
+              id: "item_1",
+              type: "command_execution",
+              command: "/bin/zsh -lc \"sed -n '1,220p' /Users/macxm/SKILL.md 2>&1 | head -c 4000\""
+            }
+          }),
+          JSON.stringify({
+            type: "item.started",
+            item: {
+              id: "item_2",
+              type: "command_execution",
+              command: "git apply some_changes.patch"
+            }
+          }),
+          JSON.stringify({ type: "turn.completed" }),
+        ],
+      })
     )
 
     const chunks: any[] = []
@@ -125,24 +107,26 @@ describe("codexAdapter", () => {
 
   it("streams status for tool_calls from thread.run.step events", async () => {
     spawnMock.mockImplementation(() =>
-      createCodexChild([
-        JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
-        JSON.stringify({
-          type: "thread.run.step.created",
-          step: {
-            step_details: {
-              tool_calls: [
-                {
-                  type: "tool_call",
-                  name: "view_file",
-                  arguments: JSON.stringify({ path: "src/main.ts" })
-                }
-              ]
+      createMockChildProcess({
+        stdoutLines: [
+          JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+          JSON.stringify({
+            type: "thread.run.step.created",
+            step: {
+              step_details: {
+                tool_calls: [
+                  {
+                    type: "tool_call",
+                    name: "read",
+                    arguments: JSON.stringify({ path: "src/main.ts" })
+                  }
+                ]
+              }
             }
-          }
-        }),
-        JSON.stringify({ type: "turn.completed" }),
-      ])
+          }),
+          JSON.stringify({ type: "turn.completed" }),
+        ],
+      })
     )
 
     const chunks: any[] = []
