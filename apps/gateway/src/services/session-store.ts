@@ -21,6 +21,7 @@ interface SessionRecord {
   permissionMode?: "ask" | "auto" | "full" | "custom";
   worktreeMode?: boolean;
   worktreeDirName?: string;
+  worktreeBaseBranch?: string;
   lockedPage?: PageCapture;
   summary?: string;
   _lastSummarizedMessageCount?: number;
@@ -205,6 +206,7 @@ export class SessionStore {
       permissionMode?: "ask" | "auto" | "full" | "custom";
       worktreeMode?: boolean;
       worktreeDirName?: string;
+      worktreeBaseBranch?: string;
       lockedPage?: PageCapture;
     }
   ): Promise<void> {
@@ -218,6 +220,7 @@ export class SessionStore {
       if (config.permissionMode !== undefined) record.permissionMode = config.permissionMode;
       if (config.worktreeMode !== undefined) record.worktreeMode = config.worktreeMode;
       if (config.worktreeDirName !== undefined) record.worktreeDirName = config.worktreeDirName;
+      if (config.worktreeBaseBranch !== undefined) record.worktreeBaseBranch = config.worktreeBaseBranch;
       if (config.lockedPage !== undefined) record.lockedPage = config.lockedPage;
       record.updatedAt = new Date().toISOString();
       await this.writeAll(records);

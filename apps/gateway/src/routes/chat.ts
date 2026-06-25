@@ -4,7 +4,8 @@ import { ChatRequestSchema, type ChatMessage } from "@chandaoplus/shared"
 import { writeContextBundle } from "../services/context-bundle-writer"
 import { generateSummary } from "../services/summarizer"
 import { validateWorkspaceRoot } from "../services/workspace-validator"
-import { createWorktree, resolveWorktreeCwd, extractTaskLabel } from "../services/worktree-manager"
+import { createWorktree, resolveWorktreeCwd, extractTaskLabel, type WorktreeInfo } from "../services/worktree-manager"
+import { BUILTIN_MERGE_WORKTREE_PROMPT } from "../services/skill-store"
 import { CODEX_BIN, OPENCODE_BIN, QCODE_BIN, SUMMARIZE_THRESHOLD } from "../config"
 
 type TaskStatus = "running" | "completed" | "error" | "stopped"
@@ -147,7 +148,7 @@ export function registerChatRoutes(app: any, deps: any) {
     bundleDir: string
     adapter: any
   }) => {
-    let worktreeInfo: { path: string; branch: string; repoRoot: string; dirName: string } | null = null
+    let worktreeInfo: WorktreeInfo | null = null
     try {
       // 若启用 worktree 模式，为本次任务创建独立的工作目录
       let effectiveWorkspace = params.workspace
@@ -159,10 +160,13 @@ export function registerChatRoutes(app: any, deps: any) {
           effectiveWorkspace = { ...params.workspace, rootPath: worktreeCwd }
           console.log(`[WorktreeMode] Task ${task.id} running in worktree: ${worktreeCwd} (branch: ${worktreeInfo.branch})`)
           emitTaskEvent(task, { type: "status", content: `Worktree 就绪: ${worktreeInfo.dirName} (${worktreeInfo.branch})` })
-          // 持久化 dirName，确保清理时使用一致的目录名
+          // 持久化 dirName + baseBranch，确保清理时使用一致的目录名，合并时知道目标分支
           try {
             if (params.request.sessionId) {
-              await deps.sessionStore.updateConfig(params.request.sessionId, { worktreeDirName: worktreeInfo.dirName })
+              await deps.sessionStore.updateConfig(params.request.sessionId, {
+                worktreeDirName: worktreeInfo.dirName,
+                worktreeBaseBranch: worktreeInfo.baseBranch,
+              })
             }
           } catch (persistErr: any) {
             console.error(`[WorktreeMode] Failed to persist worktree dirName:`, persistErr)
@@ -175,6 +179,22 @@ export function registerChatRoutes(app: any, deps: any) {
       }
 
       const skill = await deps.skillStore.get(params.request.command)
+
+      // merge 技能根据 worktree 模式自动切换提示词，并注入基础分支
+      if (skill?.id === "merge" && params.request.worktreeMode) {
+        skill.promptTemplate = BUILTIN_MERGE_WORKTREE_PROMPT
+        if (params.request.sessionId) {
+          try {
+            const session = await deps.sessionStore.get(params.request.sessionId)
+            if (session?.worktreeBaseBranch) {
+              skill.promptTemplate = skill.promptTemplate.replace(/\{\{baseBranch\}\}/g, session.worktreeBaseBranch)
+            }
+          } catch {}
+        }
+        // 兜底：未获取到 baseBranch 则移除占位符
+        skill.promptTemplate = skill.promptTemplate.replace(/\{\{baseBranch\}\}/g, "（基础分支请通过 git rev-parse --abbrev-ref origin/HEAD 获取）")
+      }
+
       await params.adapter.run({
         request: params.request,
         workspace: effectiveWorkspace,

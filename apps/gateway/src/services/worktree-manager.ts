@@ -131,6 +131,8 @@ export interface WorktreeInfo {
   repoRoot: string
   /** worktree 目录名 */
   dirName: string
+  /** 创建 worktree 时的基础分支（合并目标） */
+  baseBranch: string
 }
 
 /**
@@ -189,7 +191,8 @@ export async function createWorktree(workspaceRoot: string, taskLabel?: string, 
     try {
       await access(worktreePath)
       console.log(`[WorktreeManager] Reusing existing single-repo worktree: ${worktreePath}`)
-      return { path: worktreePath, branch, repoRoot: singleRepoRoot, dirName }
+      const baseBranch = await getCurrentBranch(singleRepoRoot)
+      return { path: worktreePath, branch, repoRoot: singleRepoRoot, dirName, baseBranch }
     } catch {}
 
     await ensureGitIgnore(singleRepoRoot)
@@ -208,7 +211,7 @@ export async function createWorktree(workspaceRoot: string, taskLabel?: string, 
       console.log(`[WorktreeManager] Created worktree: ${worktreePath} (branch: ${branch})`)
     }
 
-    return { path: worktreePath, branch, repoRoot: singleRepoRoot, dirName }
+    return { path: worktreePath, branch, repoRoot: singleRepoRoot, dirName, baseBranch: currentBranch }
   }
 
   // --- 多仓库模式 ---
@@ -227,6 +230,7 @@ export async function createWorktree(workspaceRoot: string, taskLabel?: string, 
   const createdPaths: Array<{ repoPath: string; targetPath: string }> = []
   const errors: Array<{ repoPath: string; error: string }> = []
 
+  let multiRepoBaseBranch: string | undefined
   for (const repoPath of gitRepos) {
     const relPath = relative(workspaceRoot, repoPath)
     const targetPath = join(worktreeRoot, relPath)
@@ -244,6 +248,7 @@ export async function createWorktree(workspaceRoot: string, taskLabel?: string, 
     await ensureGitIgnore(repoPath)
     const currentBranch = await getCurrentBranch(repoPath)
 
+      multiRepoBaseBranch = multiRepoBaseBranch || currentBranch
     try {
       if (await branchExists(repoPath, branch)) {
         await execGit(["worktree", "add", targetPath, branch], { cwd: repoPath })
@@ -324,7 +329,8 @@ export async function createWorktree(workspaceRoot: string, taskLabel?: string, 
   return {
     path: worktreeRoot,
     branch,
-    repoRoot: workspaceRoot, // 设置 repoRoot 为 workspaceRoot，使 CWD 路径转换对多仓库保持一致
+    repoRoot: workspaceRoot,
+    baseBranch: multiRepoBaseBranch || "main",
     dirName
   }
 }
