@@ -2,10 +2,15 @@ import { StreamEventProcessor } from "./stream-event-processor"
 import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { CLAUDE_BIN, CLAUDE_ARGS } from "../config"
+import { cleanupSessionLock } from "./session-cleanup"
 
 export const claudeCodeAdapter: AgentAdapter = {
   id: "claude-code",
   async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
+    if (request.sessionId) {
+      await cleanupSessionLock(request.sessionId, "Claude Code")
+    }
+
     const prompt = await buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,

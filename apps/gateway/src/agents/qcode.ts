@@ -2,6 +2,7 @@ import { StreamEventProcessor } from "./stream-event-processor"
 import { buildPrompt } from "./types"
 import type { AgentAdapter, AgentRunOptions } from "./types"
 import { QCODE_BIN, QCODE_ARGS } from "../config"
+import { cleanupSessionLock } from "./session-cleanup"
 
 /**
  * Qcode 专用事件处理器，在 StreamEventProcessor 基础上
@@ -29,6 +30,10 @@ class QcodeEventProcessor extends StreamEventProcessor {
 export const qcodeAdapter: AgentAdapter = {
   id: "qcode",
   async run({ workspace, bundleDir, request, skill, onChunk, sessionStore, signal }: AgentRunOptions) {
+    if (request.sessionId) {
+      await cleanupSessionLock(request.sessionId, "Qcode")
+    }
+
     const prompt = await buildPrompt({
       command: request.command,
       workspaceRoot: workspace.rootPath,
