@@ -94,12 +94,14 @@ export const qcodeAdapter: AgentAdapter = {
       await processor.execute(bin, args, workspace.rootPath, prompt)
     } catch (err: any) {
       const isResume = args.includes("--resume")
-      const isSessionNotFoundError =
+      const shouldFallback = isResume && (
         err.message.includes("No conversation found") ||
-        err.message.includes("Invalid session identifier")
+        err.message.includes("Invalid session identifier") ||
+        err.message.includes("exited with code")
+      )
 
-      if (isResume && isSessionNotFoundError) {
-        console.warn(`[Qcode] Session ${request.sessionId} not found on disk. Falling back to init mode.`)
+      if (shouldFallback) {
+        console.warn(`[Qcode] Session resume failed. Falling back to init mode. Error: ${err.message}`)
         const fallbackArgs: string[] = []
         for (let i = 0; i < args.length; i++) {
           if (args[i] === "--resume") {
